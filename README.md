@@ -6,12 +6,13 @@
 
 - 📈 **Live Crypto Prices** – Stay updated with real-time price changes.
 - 🔀 **Multi-Crypto Support** – Track multiple cryptocurrencies at once.
-- 📊 **24h Price Change** – See how your favorite coins are performing over the last 24 hours.
+- 📊 **24h Price Change** – See how your favourite coins perform over the last 24 hours.
 
 ## 📥 How to Install
 
+> [!NOTE]
 > **Why isn't this on the App Store?**  
-> Because publishing apps costs money, and I’d rather HODL my crypto. 😅
+> Because publishing apps cost money, and I’d rather HODL my crypto. 😅
 
 ### Steps to Install:
 
@@ -22,4 +23,4 @@
    - Under the **Security** section, find the warning about **CryptoTicker**.
    - Click **"Open Anyway"** to trust the app.
 
-Now you're all set! 🚀 CryptoTicker will run from your menu bar and keep you updated on crypto prices in real-time.
+Now you're all set! 🚀 CryptoTicker will run from your menu bar and keep you updated on crypto prices in real time.
