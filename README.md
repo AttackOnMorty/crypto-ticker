@@ -1,5 +1,7 @@
 # Crypto Ticker
 
+<img width="350" alt="image" src="https://github.com/user-attachments/assets/65f1463b-14cf-4d12-aa5e-3da753666093" />
+
 **CryptoTicker** is a lightweight macOS menu bar application that displays real-time cryptocurrency prices using the Binance WebSocket API.
 
 ## 🚀 Features
