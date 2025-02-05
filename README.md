@@ -22,5 +22,3 @@
    - Go to **System Preferences** → **Security & Privacy**.
    - Under the **Security** section, find the warning about **CryptoTicker**.
    - Click **"Open Anyway"** to trust the app.
-
-Now you're all set! 🚀
