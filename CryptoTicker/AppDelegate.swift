@@ -7,22 +7,47 @@
 
 import Cocoa
 import SwiftUI
+import os.log
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBarItem: NSStatusItem!
     private let webSocketManager = WebSocketManager()
-    private let updateInterval: TimeInterval = 1.0
+    private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "AppDelegate")
+    
+    // MARK: - Application Lifecycle
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.info("Application launching...")
         setupStatusBarItem()
         setupMenu()
         setupObservers()
         startPriceUpdates()
+        logger.info("Application launched successfully")
     }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        logger.info("Application terminating...")
+        webSocketManager.disconnectWebSockets()
+    }
+    
+    // MARK: - Status Bar Setup
     
     private func setupStatusBarItem() {
         statusBarItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusBarItem.button?.title = "Loading..."
+        
+        guard let button = statusBarItem.button else {
+            logger.error("Failed to create status bar button")
+            return
+        }
+        
+        button.title = "Loading..."
+        button.font = NSFont(name: AppConfiguration.UI.statusBarFont, size: AppConfiguration.UI.statusBarFontSize)
+        
+        // Add click handler for manual refresh
+        button.action = #selector(statusBarButtonClicked)
+        button.target = self
+        
+        logger.info("Status bar item created")
     }
     
     private func setupMenu() {
@@ -30,62 +55,146 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func setupObservers() {
-        NotificationCenter.default.addObserver(self, selector: #selector(updateMenu), name: NSNotification.Name("PriceUpdated"), object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateMenu),
+            name: NSNotification.Name("PriceUpdated"),
+            object: nil
+        )
     }
+    
+    // MARK: - Menu Creation
     
     private func createMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
         
-        for (code, name, symbol, _) in webSocketManager.cryptoPairs {
-            let price = webSocketManager.prices[symbol] ?? "Loading..."
-            let change = formatPriceChange(webSocketManager.priceChanges[symbol] ?? "-")
-            
-            let formattedText = "\(code)\t\(name)\t$\(price)\t"
-            let item = NSMenuItem(title: formattedText, action: #selector(toggleCrypto(_:)), keyEquivalent: "")
-            item.representedObject = symbol
-            item.state = webSocketManager.selectedSymbols.contains(symbol) ? .on : .off
-            item.attributedTitle = createAttributedText(for: formattedText, change: change)
-            
+        // Add cryptocurrency selection items
+        for currency in webSocketManager.availableCurrencies {
+            let item = createCurrencyMenuItem(for: currency)
             menu.addItem(item)
         }
         
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
+        
+        // Add utility items
+        menu.addItem(createRefreshMenuItem())
+        menu.addItem(createAboutMenuItem())
+        menu.addItem(.separator())
+        menu.addItem(createQuitMenuItem())
         
         return menu
     }
     
-    private func createAttributedText(for text: String, change: String) -> NSAttributedString {
+    private func createCurrencyMenuItem(for currency: CryptoCurrency) -> NSMenuItem {
+        let price = webSocketManager.prices[currency.symbol] ?? "Loading..."
+        let change = webSocketManager.priceChanges[currency.symbol] ?? "-"
+        let isSelected = webSocketManager.selectedSymbols.contains(currency.symbol)
+        let isConnected = webSocketManager.isConnected(for: currency.symbol)
+        
+        let title = formatCurrencyTitle(
+            code: currency.code,
+            name: currency.name,
+            price: price,
+            change: change,
+            icon: currency.icon,
+            isConnected: isConnected
+        )
+        
+        let item = NSMenuItem(title: title, action: #selector(toggleCrypto(_:)), keyEquivalent: "")
+        item.representedObject = currency.symbol
+        item.state = isSelected ? .on : .off
+        item.target = self
+        
+        // Create attributed title for better formatting
+        item.attributedTitle = createAttributedTitle(
+            code: currency.code,
+            name: currency.name,
+            price: price,
+            change: change,
+            icon: currency.icon,
+            isConnected: isConnected
+        )
+        
+        return item
+    }
+    
+    private func createRefreshMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Refresh Prices", action: #selector(refreshPrices), keyEquivalent: "r")
+        item.target = self
+        return item
+    }
+    
+    private func createAboutMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "About CryptoTicker", action: #selector(showAbout), keyEquivalent: "")
+        item.target = self
+        return item
+    }
+    
+    private func createQuitMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
+        item.target = self
+        return item
+    }
+    
+    // MARK: - Menu Formatting
+    
+    private func formatCurrencyTitle(code: String, name: String, price: String, change: String, icon: String, isConnected: Bool) -> String {
+        let status = isConnected ? "●" : "○"
+        return "\(status) \(icon) \(code) - \(name) - $\(price) (\(change))"
+    }
+    
+    private func createAttributedTitle(code: String, name: String, price: String, change: String, icon: String, isConnected: Bool) -> NSAttributedString {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.tabStops = [
-            NSTextTab(textAlignment: .left, location: 80, options: [:]),
-            NSTextTab(textAlignment: .left, location: 200, options: [:]),
-            NSTextTab(textAlignment: .left, location: 270, options: [:])
+            NSTextTab(textAlignment: .left, location: 30, options: [:]),   // Status + Icon
+            NSTextTab(textAlignment: .left, location: 80, options: [:]),   // Code
+            NSTextTab(textAlignment: .left, location: 180, options: [:]),  // Name
+            NSTextTab(textAlignment: .left, location: 280, options: [:]),  // Price
+            NSTextTab(textAlignment: .left, location: 360, options: [:])   // Change
         ]
         
-        let fullString = NSMutableAttributedString(string: text, attributes: [
-            .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
+        let baseAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont(name: AppConfiguration.UI.menuFont, size: AppConfiguration.UI.menuFontSize) ?? NSFont.monospacedSystemFont(ofSize: AppConfiguration.UI.menuFontSize, weight: .regular),
             .paragraphStyle: paragraphStyle
-        ])
-        
-        let changeAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular),
-            .foregroundColor: NSColor.secondaryLabelColor
         ]
-        let changeString = NSAttributedString(string: change, attributes: changeAttributes)
-        fullString.append(changeString)
         
-        return fullString
+        let statusColor: NSColor = isConnected ? .systemGreen : .systemRed
+        let changeColor: NSColor = {
+            if let changeValue = Double(change.replacingOccurrences(of: "%", with: "").replacingOccurrences(of: "+", with: "")) {
+                return changeValue >= 0 ? .systemGreen : .systemRed
+            }
+            return .secondaryLabelColor
+        }()
+        
+        let status = isConnected ? "●" : "○"
+        let fullText = "\(status)\t\(icon) \(code)\t\(name)\t$\(price)\t\(formatPriceChange(change))"
+        
+        let attributedString = NSMutableAttributedString(string: fullText, attributes: baseAttributes)
+        
+        // Color the status indicator
+        attributedString.addAttribute(.foregroundColor, value: statusColor, range: NSRange(location: 0, length: 1))
+        
+        // Color the price change
+        if let changeRange = fullText.range(of: formatPriceChange(change)) {
+            let nsRange = NSRange(changeRange, in: fullText)
+            attributedString.addAttribute(.foregroundColor, value: changeColor, range: nsRange)
+        }
+        
+        return attributedString
     }
     
     private func formatPriceChange(_ change: String) -> String {
-        guard let changeValue = Double(change.replacingOccurrences(of: "%", with: "")) else { return change }
-        return String(format: "%+5.1f%%", changeValue)
+        guard let changeValue = Double(change.replacingOccurrences(of: "%", with: "").replacingOccurrences(of: "+", with: "")) else {
+            return change
+        }
+        return String(format: "%+.1f%%", changeValue)
     }
     
+    // MARK: - Status Bar Updates
+    
     private func startPriceUpdates() {
-        Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: AppConfiguration.UI.statusBarUpdateInterval, repeats: true) { [weak self] _ in
             self?.updateStatusBarTitle()
         }
     }
@@ -93,36 +202,85 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateStatusBarTitle() {
         DispatchQueue.main.async {
             guard let button = self.statusBarItem.button else { return }
-            let prices = self.webSocketManager.selectedSymbols.compactMap { symbol in
-                guard let cryptoInfo = self.webSocketManager.cryptoPairs.first(where: { $0.2 == symbol }) else { return nil }
-                let shortCode = cryptoInfo.3
-                return self.webSocketManager.prices[symbol].map { "\(shortCode) \($0)" }
-            }.joined(separator: " ")
             
-            button.title = prices.isEmpty ? "CRYPTO TICKER" : prices
-            button.font = NSFont(name: "Menlo", size: 12)
+            let displayText = self.createStatusBarDisplayText()
+            button.title = displayText
+            
+            self.logger.debug("Updated status bar: \(displayText)")
         }
+    }
+    
+    private func createStatusBarDisplayText() -> String {
+        let selectedPrices = webSocketManager.selectedSymbols.compactMap { symbol -> String? in
+            guard let currency = webSocketManager.getCurrency(for: symbol),
+                  let price = webSocketManager.prices[symbol] else {
+                return nil
+            }
+            
+            let connectionStatus = webSocketManager.isConnected(for: symbol) ? "" : "!"
+            return "\(currency.icon)\(connectionStatus) \(price)"
+        }
+        
+        return selectedPrices.isEmpty ? "CRYPTO TICKER" : selectedPrices.joined(separator: " | ")
+    }
+    
+    // MARK: - Actions
+    
+    @objc private func statusBarButtonClicked() {
+        // Optional: Add click behavior (e.g., refresh or show/hide menu)
+        logger.info("Status bar button clicked")
     }
     
     @objc private func toggleCrypto(_ sender: NSMenuItem) {
-        if let symbol = sender.representedObject as? String {
-            webSocketManager.toggleCryptoSelection(symbol)
-            updateMenu()
+        guard let symbol = sender.representedObject as? String else {
+            logger.error("Invalid symbol in menu item")
+            return
+        }
+        
+        webSocketManager.toggleCryptoSelection(symbol)
+        logger.info("Toggled crypto selection: \(symbol)")
+    }
+    
+    @objc private func refreshPrices() {
+        logger.info("Manual price refresh requested")
+        Task {
+            await webSocketManager.fetchAllCryptoPrices()
         }
     }
     
+    @objc private func showAbout() {
+        let alert = NSAlert()
+        alert.messageText = AppConfiguration.appName
+        alert.informativeText = "A simple cryptocurrency price tracker for your macOS menu bar.\n\nVersion \(AppConfiguration.version)\nBuilt with Swift and SwiftUI"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+    
     @objc private func updateMenu() {
-        DispatchQueue.main.async { self.statusBarItem.menu = self.createMenu() }
+        DispatchQueue.main.async {
+            self.statusBarItem.menu = self.createMenu()
+        }
     }
     
     @objc private func quitApp() {
+        logger.info("Quit requested")
         webSocketManager.disconnectWebSockets()
         NSApplication.shared.terminate(nil)
     }
 }
 
+// MARK: - NSMenuDelegate
+
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
-        webSocketManager.fetchAllCryptoPrices()
+        logger.info("Menu will open - refreshing prices")
+        Task {
+            await webSocketManager.fetchAllCryptoPrices()
+        }
+    }
+    
+    func menuDidClose(_ menu: NSMenu) {
+        logger.debug("Menu closed")
     }
 }

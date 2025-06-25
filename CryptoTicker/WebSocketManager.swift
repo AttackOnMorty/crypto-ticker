@@ -1,130 +1,281 @@
 import Foundation
+import os.log
+
+enum WebSocketError: Error {
+    case invalidURL
+    case connectionFailed
+    case dataParsingFailed
+    case networkError(Error)
+}
+
+enum ConnectionState {
+    case disconnected
+    case connecting
+    case connected
+    case error(WebSocketError)
+}
+
+struct CryptoCurrency {
+    let code: String
+    let name: String
+    let symbol: String
+    let icon: String
+    
+    static let availableCurrencies = [
+        CryptoCurrency(code: "BTC", name: "Bitcoin", symbol: "btcusdt", icon: "₿"),
+        CryptoCurrency(code: "ETH", name: "Ethereum", symbol: "ethusdt", icon: "Ξ"),
+        CryptoCurrency(code: "XRP", name: "XRP", symbol: "xrpusdt", icon: "✕"),
+        CryptoCurrency(code: "SOL", name: "Solana", symbol: "solusdt", icon: "S"),
+        CryptoCurrency(code: "BNB", name: "BNB", symbol: "bnbusdt", icon: "B"),
+        CryptoCurrency(code: "DOGE", name: "Dogecoin", symbol: "dogeusdt", icon: "Ɖ"),
+        CryptoCurrency(code: "ADA", name: "Cardano", symbol: "adausdt", icon: "₳"),
+        CryptoCurrency(code: "TRX", name: "TRON", symbol: "trxusdt", icon: "T"),
+        CryptoCurrency(code: "LINK", name: "Chainlink", symbol: "linkusdt", icon: "L"),
+        CryptoCurrency(code: "AVAX", name: "Avalanche", symbol: "avaxusdt", icon: "A")
+    ]
+}
 
 class WebSocketManager: ObservableObject {
     @Published var prices: [String: String] = [:]
     @Published var selectedSymbols: [String] = []
     @Published var priceChanges: [String: String] = [:]
-
+    @Published var connectionStates: [String: ConnectionState] = [:]
+    
     private var webSocketTasks: [String: URLSessionWebSocketTask] = [:]
     private let urlSession = URLSession(configuration: .default)
-    private let userDefaultsKey = "selectedCryptos"
+    private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "WebSocketManager")
     
-    let cryptoPairs = [
-        ("BTC", "Bitcoin", "btcusdt", "₿"),
-        ("ETH", "Ethereum", "ethusdt", "Ξ"),
-        ("XRP", "XRP", "xrpusdt", "✕"),
-        ("SOL", "Solana", "solusdt", "S"),
-        ("BNB", "BNB", "bnbusdt", "B"),
-        ("DOGE", "Dogecoin", "dogeusdt", "Ɖ"),
-        ("ADA", "Cardano", "adausdt", "₳"),
-        ("TRX", "TRON", "trxusdt", "T"),
-        ("LINK", "Chainlink", "linkusdt", "L"),
-        ("AVAX", "Avalanche", "avaxusdt", "A"),
-        ("TRUMP", "Official Trump", "trumpusdt", "TRU")
-    ]
+    let availableCurrencies = CryptoCurrency.availableCurrencies
     
     init() {
         loadSelectedCryptos()
-        fetchAllCryptoPrices()
-        connectWebSockets()
+        Task {
+            await fetchAllCryptoPrices()
+            connectWebSockets()
+        }
     }
     
+    // MARK: - Configuration Management
+    
     private func loadSelectedCryptos() {
-        selectedSymbols = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] ?? ["btcusdt"]
+        selectedSymbols = UserDefaults.standard.array(forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos) as? [String] ?? AppConfiguration.Defaults.selectedCryptos
+        logger.info("Loaded selected cryptos: \(self.selectedSymbols)")
     }
     
     private func saveSelectedCryptos() {
-        UserDefaults.standard.set(selectedSymbols, forKey: userDefaultsKey)
+        UserDefaults.standard.set(selectedSymbols, forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos)
+        logger.info("Saved selected cryptos: \(self.selectedSymbols)")
     }
     
-    func fetchAllCryptoPrices() {
-        cryptoPairs.forEach { fetchPrice(for: $0.2) }
+    // MARK: - Price Fetching
+    
+    func fetchAllCryptoPrices() async {
+        await withTaskGroup(of: Void.self) { group in
+            for currency in availableCurrencies {
+                group.addTask {
+                    await self.fetchPrice(for: currency.symbol)
+                }
+            }
+        }
     }
     
-    private func fetchPrice(for symbol: String) {
-        guard let url = URL(string: "https://api.binance.com/api/v3/ticker/24hr?symbol=\(symbol.uppercased())") else { return }
+    private func fetchPrice(for symbol: String) async {
+        guard let url = URL(string: "\(AppConfiguration.API.binanceBaseURL)/ticker/24hr?symbol=\(symbol.uppercased())") else {
+            logger.error("Invalid URL for symbol: \(symbol)")
+            return
+        }
         
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let data = data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let priceStr = json["lastPrice"] as? String,
-                  let changeStr = json["priceChangePercent"] as? String else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
             
-            DispatchQueue.main.async {
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let priceStr = json["lastPrice"] as? String,
+                  let changeStr = json["priceChangePercent"] as? String else {
+                logger.error("Failed to parse price data for \(symbol)")
+                return
+            }
+            
+            await MainActor.run {
                 self.prices[symbol] = self.formatPrice(priceStr)
                 self.priceChanges[symbol] = self.formatPercent(changeStr) + "%"
                 NotificationCenter.default.post(name: NSNotification.Name("PriceUpdated"), object: nil)
             }
-        }.resume()
+            
+            logger.info("Updated price for \(symbol): \(priceStr)")
+            
+        } catch {
+            logger.error("Failed to fetch price for \(symbol): \(error.localizedDescription)")
+        }
     }
+    
+    // MARK: - WebSocket Management
     
     func connectWebSockets() {
         disconnectWebSockets()
-        selectedSymbols.forEach { connectWebSocket(for: $0) }
+        
+        for symbol in selectedSymbols {
+            connectWebSocket(for: symbol)
+        }
     }
     
     private func connectWebSocket(for symbol: String) {
-        guard let url = URL(string: "wss://stream.binance.com:9443/ws/\(symbol)@trade") else { return }
+        guard let url = URL(string: "\(AppConfiguration.API.binanceWebSocketURL)/\(symbol)@trade") else {
+            logger.error("Invalid WebSocket URL for symbol: \(symbol)")
+            updateConnectionState(for: symbol, state: .error(.invalidURL))
+            return
+        }
+        
+        updateConnectionState(for: symbol, state: .connecting)
         
         let task = urlSession.webSocketTask(with: url)
         webSocketTasks[symbol] = task
+        
         task.resume()
+        logger.info("Connecting WebSocket for \(symbol)")
+        
+        updateConnectionState(for: symbol, state: .connected)
         receiveMessage(for: symbol)
     }
     
     private func receiveMessage(for symbol: String) {
-        webSocketTasks[symbol]?.receive { [weak self] result in
+        guard let task = webSocketTasks[symbol] else { return }
+        
+        task.receive { [weak self] result in
             guard let self = self else { return }
             
-            if case .success(let message) = result, case .string(let text) = message {
-                self.handleIncomingData(text, for: symbol)
+            switch result {
+            case .success(let message):
+                if case .string(let text) = message {
+                    self.handleIncomingData(text, for: symbol)
+                }
+                self.receiveMessage(for: symbol) // Continue listening
+                
+            case .failure(let error):
+                self.logger.error("WebSocket error for \(symbol): \(error.localizedDescription)")
+                self.updateConnectionState(for: symbol, state: .error(.networkError(error)))
+                
+                // Attempt reconnection after delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfiguration.WebSocket.reconnectDelay) {
+                    self.connectWebSocket(for: symbol)
+                }
             }
-            
-            self.receiveMessage(for: symbol)
         }
     }
     
     private func handleIncomingData(_ text: String, for symbol: String) {
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let priceStr = json["p"] as? String else { return }
+              let priceStr = json["p"] as? String else {
+            logger.error("Failed to parse WebSocket data for \(symbol)")
+            return
+        }
         
         DispatchQueue.main.async {
             self.prices[symbol] = self.formatPrice(priceStr)
             NotificationCenter.default.post(name: NSNotification.Name("PriceUpdated"), object: nil)
         }
+        
+        logger.debug("Received WebSocket price update for \(symbol): \(priceStr)")
     }
+    
+    private func updateConnectionState(for symbol: String, state: ConnectionState) {
+        DispatchQueue.main.async {
+            self.connectionStates[symbol] = state
+        }
+    }
+    
+    func disconnectWebSockets() {
+        logger.info("Disconnecting all WebSockets")
+        
+        webSocketTasks.values.forEach { task in
+            task.cancel(with: .goingAway, reason: nil)
+        }
+        webSocketTasks.removeAll()
+        
+        // Update all connection states
+        for symbol in selectedSymbols {
+            updateConnectionState(for: symbol, state: .disconnected)
+        }
+    }
+    
+    // MARK: - Selection Management
     
     func toggleCryptoSelection(_ symbol: String) {
         if let index = selectedSymbols.firstIndex(of: symbol) {
             selectedSymbols.remove(at: index)
+            logger.info("Removed \(symbol) from selection")
         } else {
             selectedSymbols.append(symbol)
+            logger.info("Added \(symbol) to selection")
         }
+        
         saveSelectedCryptos()
         connectWebSockets()
     }
     
-    func disconnectWebSockets() {
-        webSocketTasks.values.forEach { $0.cancel() }
-        webSocketTasks.removeAll()
+    func selectCrypto(_ symbol: String) {
+        guard !selectedSymbols.contains(symbol) else { return }
+        selectedSymbols.append(symbol)
+        saveSelectedCryptos()
+        connectWebSocket(for: symbol)
     }
+    
+    func deselectCrypto(_ symbol: String) {
+        guard let index = selectedSymbols.firstIndex(of: symbol) else { return }
+        selectedSymbols.remove(at: index)
+        webSocketTasks[symbol]?.cancel()
+        webSocketTasks.removeValue(forKey: symbol)
+        saveSelectedCryptos()
+    }
+    
+    // MARK: - Formatting Utilities
     
     private func formatPrice(_ price: String) -> String {
         guard let priceDouble = Double(price) else { return price }
+        
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
+        formatter.groupingSeparator = ","
+        formatter.usesGroupingSeparator = true
         
-        formatter.maximumFractionDigits = priceDouble >= 100 ? 0 : priceDouble >= 1 ? 1 : priceDouble >= 0.1 ? 3 : 8
+        // Dynamic precision based on price range
+        formatter.maximumFractionDigits = {
+            switch priceDouble {
+            case 100...: return 0
+            case 1..<100: return 1
+            case 0.1..<1: return 3
+            default: return 8
+            }
+        }()
         
         return formatter.string(from: NSNumber(value: priceDouble)) ?? price
     }
     
     private func formatPercent(_ percent: String) -> String {
         guard let percentDouble = Double(percent) else { return percent }
+        
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 1
+        formatter.positivePrefix = "+"
+        
         return formatter.string(from: NSNumber(value: percentDouble)) ?? percent
+    }
+    
+    // MARK: - Utility Methods
+    
+    func getCurrency(for symbol: String) -> CryptoCurrency? {
+        return availableCurrencies.first { $0.symbol == symbol }
+    }
+    
+    func isConnected(for symbol: String) -> Bool {
+        if case .connected = connectionStates[symbol] {
+            return true
+        }
+        return false
+    }
+    
+    deinit {
+        disconnectWebSockets()
     }
 }

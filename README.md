@@ -12,8 +12,7 @@
 
 ## 📥 How to Install
 
-> [!NOTE]
-> **Why isn't this on the App Store?**  
+> [!NOTE] > **Why isn't this on the App Store?**  
 > Because publishing apps cost money, and I’d rather HODL my crypto. 😅
 
 1. Download and unzip **`CryptoTicker.zip`** from the [latest release](https://github.com/AttackOnMorty/crypto-ticker/releases).
