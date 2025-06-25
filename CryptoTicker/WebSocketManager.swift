@@ -111,10 +111,17 @@ class WebSocketManager: ObservableObject {
     // MARK: - WebSocket Management
     
     func connectWebSockets() {
-        disconnectWebSockets()
+        // Disconnect any websockets that are no longer selected
+        let symbolsToDisconnect = Set(webSocketTasks.keys).subtracting(Set(selectedSymbols))
+        for symbol in symbolsToDisconnect {
+            disconnectWebSocket(for: symbol)
+        }
         
+        // Connect websockets for newly selected symbols
         for symbol in selectedSymbols {
-            connectWebSocket(for: symbol)
+            if webSocketTasks[symbol] == nil {
+                connectWebSocket(for: symbol)
+            }
         }
     }
     
@@ -125,26 +132,41 @@ class WebSocketManager: ObservableObject {
             return
         }
         
+        logger.info("Connecting WebSocket for \(symbol)")
         updateConnectionState(for: symbol, state: .connecting)
         
         let task = urlSession.webSocketTask(with: url)
         webSocketTasks[symbol] = task
         
         task.resume()
-        logger.info("Connecting WebSocket for \(symbol)")
-        
-        updateConnectionState(for: symbol, state: .connected)
         receiveMessage(for: symbol)
+        
+        // Only mark as connected after we start receiving messages
+        // The connection state will be updated in receiveMessage on first success
     }
     
     private func receiveMessage(for symbol: String) {
-        guard let task = webSocketTasks[symbol] else { return }
+        guard let task = webSocketTasks[symbol] else { 
+            logger.debug("No WebSocket task found for \(symbol), stopping message reception")
+            return 
+        }
         
         task.receive { [weak self] result in
             guard let self = self else { return }
             
+            // Check if this symbol is still selected before processing
+            guard self.selectedSymbols.contains(symbol) else {
+                self.logger.debug("Symbol \(symbol) no longer selected, stopping message reception")
+                return
+            }
+            
             switch result {
             case .success(let message):
+                // Mark as connected on first successful message
+                if case .connecting = self.connectionStates[symbol] {
+                    self.updateConnectionState(for: symbol, state: .connected)
+                }
+                
                 if case .string(let text) = message {
                     self.handleIncomingData(text, for: symbol)
                 }
@@ -154,15 +176,25 @@ class WebSocketManager: ObservableObject {
                 self.logger.error("WebSocket error for \(symbol): \(error.localizedDescription)")
                 self.updateConnectionState(for: symbol, state: .error(.networkError(error)))
                 
-                // Attempt reconnection after delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfiguration.WebSocket.reconnectDelay) {
-                    self.connectWebSocket(for: symbol)
+                // Only attempt reconnection if symbol is still selected
+                if self.selectedSymbols.contains(symbol) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfiguration.WebSocket.reconnectDelay) {
+                        if self.selectedSymbols.contains(symbol) {
+                            self.connectWebSocket(for: symbol)
+                        }
+                    }
                 }
             }
         }
     }
     
     private func handleIncomingData(_ text: String, for symbol: String) {
+        // Double-check that this symbol is still selected
+        guard selectedSymbols.contains(symbol) else {
+            logger.debug("Ignoring price update for unselected symbol: \(symbol)")
+            return
+        }
+        
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let priceStr = json["p"] as? String else {
@@ -171,6 +203,12 @@ class WebSocketManager: ObservableObject {
         }
         
         DispatchQueue.main.async {
+            // Final check before updating price
+            guard self.selectedSymbols.contains(symbol) else {
+                self.logger.debug("Symbol \(symbol) deselected during price update, skipping")
+                return
+            }
+            
             self.prices[symbol] = self.formatPrice(priceStr)
             NotificationCenter.default.post(name: NSNotification.Name("PriceUpdated"), object: nil)
         }
@@ -181,21 +219,31 @@ class WebSocketManager: ObservableObject {
     private func updateConnectionState(for symbol: String, state: ConnectionState) {
         DispatchQueue.main.async {
             self.connectionStates[symbol] = state
+            // Notify UI to update connection indicators immediately
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ConnectionStateChanged"), 
+                object: nil, 
+                userInfo: ["symbol": symbol, "state": state]
+            )
         }
     }
     
     func disconnectWebSockets() {
         logger.info("Disconnecting all WebSockets")
         
-        webSocketTasks.values.forEach { task in
-            task.cancel(with: .goingAway, reason: nil)
+        let allSymbols = Array(webSocketTasks.keys)
+        for symbol in allSymbols {
+            disconnectWebSocket(for: symbol)
         }
-        webSocketTasks.removeAll()
+    }
+    
+    private func disconnectWebSocket(for symbol: String) {
+        guard let task = webSocketTasks[symbol] else { return }
         
-        // Update all connection states
-        for symbol in selectedSymbols {
-            updateConnectionState(for: symbol, state: .disconnected)
-        }
+        logger.info("Disconnecting WebSocket for \(symbol)")
+        task.cancel(with: .goingAway, reason: nil)
+        webSocketTasks.removeValue(forKey: symbol)
+        updateConnectionState(for: symbol, state: .disconnected)
     }
     
     // MARK: - Selection Management
@@ -223,9 +271,9 @@ class WebSocketManager: ObservableObject {
     func deselectCrypto(_ symbol: String) {
         guard let index = selectedSymbols.firstIndex(of: symbol) else { return }
         selectedSymbols.remove(at: index)
-        webSocketTasks[symbol]?.cancel()
-        webSocketTasks.removeValue(forKey: symbol)
+        disconnectWebSocket(for: symbol)
         saveSelectedCryptos()
+        logger.info("Deselected crypto: \(symbol)")
     }
     
     // MARK: - Formatting Utilities
@@ -273,6 +321,10 @@ class WebSocketManager: ObservableObject {
             return true
         }
         return false
+    }
+    
+    private func shouldMaintainConnection(for symbol: String) -> Bool {
+        return selectedSymbols.contains(symbol)
     }
     
     deinit {

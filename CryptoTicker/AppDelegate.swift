@@ -61,6 +61,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSNotification.Name("PriceUpdated"),
             object: nil
         )
+        
+        // Listen for connection state changes to update menu immediately
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateMenu),
+            name: NSNotification.Name("ConnectionStateChanged"),
+            object: nil
+        )
     }
     
     // MARK: - Menu Creation
