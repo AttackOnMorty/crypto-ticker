@@ -59,7 +59,7 @@ struct AppConfiguration {
         static let selectedCryptos = ["btcusdt"]
         static let maxDisplayedCryptos = 5
         static let priceUpdateInterval: TimeInterval = 2.0
-        static let allPricesRefreshInterval: TimeInterval = 600.0 // 10 minutes
+        static let allPricesRefreshInterval: TimeInterval = 1800.0 // 30 minutes
     }
     
     // MARK: - Validation

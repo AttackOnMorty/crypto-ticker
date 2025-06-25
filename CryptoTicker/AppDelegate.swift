@@ -77,6 +77,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.delegate = self
         
+        // Add header explanation
+        menu.addItem(.separator())
+        
         // Add cryptocurrency selection items
         for currency in webSocketManager.availableCurrencies {
             let item = createCurrencyMenuItem(for: currency)
@@ -86,8 +89,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         
         // Add utility items
-        menu.addItem(createLastUpdateMenuItem())
-        menu.addItem(createRefreshScheduleMenuItem())
+        menu.addItem(createSelectedCryptoStatusMenuItem())
+        menu.addItem(createUnselectedCryptoStatusMenuItem())
         menu.addItem(createRefreshMenuItem())
         menu.addItem(createAboutMenuItem())
         menu.addItem(.separator())
@@ -129,9 +132,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
     
-    private func createLastUpdateMenuItem() -> NSMenuItem {
-        let updateTime = webSocketManager.getTimeSinceLastUpdate()
-        let item = NSMenuItem(title: "Last updated: \(updateTime)", action: nil, keyEquivalent: "")
+    private func createSelectedCryptoStatusMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Selected cryptos: Real-time updates", action: nil, keyEquivalent: "")
         item.isEnabled = false // Make it non-clickable
         
         // Style it as a subtitle
@@ -139,28 +141,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .font: NSFont.systemFont(ofSize: 11),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
-        item.attributedTitle = NSAttributedString(string: "Last updated: \(updateTime)", attributes: attributes)
+        item.attributedTitle = NSAttributedString(string: "Selected cryptos: Real-time updates", attributes: attributes)
         
         return item
     }
     
-    private func createRefreshScheduleMenuItem() -> NSMenuItem {
+    private func createUnselectedCryptoStatusMenuItem() -> NSMenuItem {
+        let updateTime = webSocketManager.getTimeSinceLastUpdate()
         let refreshMinutes = Int(AppConfiguration.Defaults.allPricesRefreshInterval / 60)
-        let item = NSMenuItem(title: "Auto-refresh every \(refreshMinutes) minutes", action: nil, keyEquivalent: "")
+        let combinedText = "Unselected cryptos: Last updated \(updateTime) (Refreshes every \(refreshMinutes) mins)"
+        
+        let item = NSMenuItem(title: combinedText, action: nil, keyEquivalent: "")
         item.isEnabled = false // Make it non-clickable
         
         // Style it as a subtitle
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.tertiaryLabelColor
+            .foregroundColor: NSColor.secondaryLabelColor
         ]
-        item.attributedTitle = NSAttributedString(string: "Auto-refresh every \(refreshMinutes) minutes", attributes: attributes)
+        item.attributedTitle = NSAttributedString(string: combinedText, attributes: attributes)
         
         return item
     }
     
     private func createRefreshMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Refresh Prices Now", action: #selector(refreshPrices), keyEquivalent: "r")
+        let item = NSMenuItem(title: "🔄 Refresh Now", action: #selector(refreshPrices), keyEquivalent: "r")
         item.target = self
         return item
     }
