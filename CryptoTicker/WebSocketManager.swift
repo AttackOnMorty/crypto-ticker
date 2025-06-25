@@ -40,10 +40,12 @@ class WebSocketManager: ObservableObject {
     @Published var selectedSymbols: [String] = []
     @Published var priceChanges: [String: String] = [:]
     @Published var connectionStates: [String: ConnectionState] = [:]
+    @Published var lastPriceUpdateTime: Date = Date()
     
     private var webSocketTasks: [String: URLSessionWebSocketTask] = [:]
     private let urlSession = URLSession(configuration: .default)
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "WebSocketManager")
+    private var priceRefreshTimer: Timer?
     
     let availableCurrencies = CryptoCurrency.availableCurrencies
     
@@ -53,6 +55,7 @@ class WebSocketManager: ObservableObject {
             await fetchAllCryptoPrices()
             connectWebSockets()
         }
+        startPeriodicPriceRefresh()
     }
     
     // MARK: - Configuration Management
@@ -70,13 +73,23 @@ class WebSocketManager: ObservableObject {
     // MARK: - Price Fetching
     
     func fetchAllCryptoPrices() async {
+        logger.info("Fetching prices for all \(self.availableCurrencies.count) cryptocurrencies")
+        
         await withTaskGroup(of: Void.self) { group in
-            for currency in availableCurrencies {
+            for currency in self.availableCurrencies {
                 group.addTask {
                     await self.fetchPrice(for: currency.symbol)
                 }
             }
         }
+        
+        // Update the last refresh time
+        await MainActor.run {
+            self.lastPriceUpdateTime = Date()
+            UserDefaults.standard.set(Date(), forKey: AppConfiguration.UserDefaultsKeys.lastUpdateTime)
+        }
+        
+        logger.info("Completed fetching all cryptocurrency prices")
     }
     
     private func fetchPrice(for symbol: String) async {
@@ -327,7 +340,47 @@ class WebSocketManager: ObservableObject {
         return selectedSymbols.contains(symbol)
     }
     
+    func getTimeSinceLastUpdate() -> String {
+        let timeInterval = Date().timeIntervalSince(lastPriceUpdateTime)
+        let minutes = Int(timeInterval / 60)
+        
+        if minutes < 1 {
+            return "Just now"
+        } else if minutes == 1 {
+            return "1 minute ago"
+        } else if minutes < 60 {
+            return "\(minutes) minutes ago"
+        } else {
+            let hours = minutes / 60
+            return hours == 1 ? "1 hour ago" : "\(hours) hours ago"
+        }
+    }
+    
+    // MARK: - Periodic Price Refresh
+    
+    private func startPeriodicPriceRefresh() {
+        logger.info("Starting periodic price refresh every \(AppConfiguration.Defaults.allPricesRefreshInterval/60) minutes")
+        
+        priceRefreshTimer = Timer.scheduledTimer(withTimeInterval: AppConfiguration.Defaults.allPricesRefreshInterval, repeats: true) { [weak self] _ in
+            self?.performPeriodicRefresh()
+        }
+    }
+    
+    private func performPeriodicRefresh() {
+        logger.info("Performing periodic price refresh for all cryptocurrencies")
+        Task {
+            await fetchAllCryptoPrices()
+        }
+    }
+    
+    private func stopPeriodicPriceRefresh() {
+        priceRefreshTimer?.invalidate()
+        priceRefreshTimer = nil
+        logger.info("Stopped periodic price refresh")
+    }
+    
     deinit {
+        stopPeriodicPriceRefresh()
         disconnectWebSockets()
     }
 }

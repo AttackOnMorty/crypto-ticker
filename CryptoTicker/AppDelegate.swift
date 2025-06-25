@@ -86,6 +86,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         
         // Add utility items
+        menu.addItem(createLastUpdateMenuItem())
+        menu.addItem(createRefreshScheduleMenuItem())
         menu.addItem(createRefreshMenuItem())
         menu.addItem(createAboutMenuItem())
         menu.addItem(.separator())
@@ -127,8 +129,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
     
+    private func createLastUpdateMenuItem() -> NSMenuItem {
+        let updateTime = webSocketManager.getTimeSinceLastUpdate()
+        let item = NSMenuItem(title: "Last updated: \(updateTime)", action: nil, keyEquivalent: "")
+        item.isEnabled = false // Make it non-clickable
+        
+        // Style it as a subtitle
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11),
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]
+        item.attributedTitle = NSAttributedString(string: "Last updated: \(updateTime)", attributes: attributes)
+        
+        return item
+    }
+    
+    private func createRefreshScheduleMenuItem() -> NSMenuItem {
+        let refreshMinutes = Int(AppConfiguration.Defaults.allPricesRefreshInterval / 60)
+        let item = NSMenuItem(title: "Auto-refresh every \(refreshMinutes) minutes", action: nil, keyEquivalent: "")
+        item.isEnabled = false // Make it non-clickable
+        
+        // Style it as a subtitle
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11),
+            .foregroundColor: NSColor.tertiaryLabelColor
+        ]
+        item.attributedTitle = NSAttributedString(string: "Auto-refresh every \(refreshMinutes) minutes", attributes: attributes)
+        
+        return item
+    }
+    
     private func createRefreshMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Refresh Prices", action: #selector(refreshPrices), keyEquivalent: "r")
+        let item = NSMenuItem(title: "Refresh Prices Now", action: #selector(refreshPrices), keyEquivalent: "r")
         item.target = self
         return item
     }
