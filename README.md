@@ -1,23 +1,24 @@
 # Crypto Ticker
 
-<img width="350" alt="image" src="https://github.com/user-attachments/assets/65f1463b-14cf-4d12-aa5e-3da753666093" />
+<img width="424" height="251" alt="image" src="https://github.com/user-attachments/assets/cf46218a-7a20-4459-b82f-4fa84bdf0239" />
 
-**CryptoTicker** is a lightweight macOS menu bar application that displays real-time cryptocurrency prices using the Binance WebSocket API.
+**CryptoTicker** is a lightweight macOS menu bar application that displays real-time crypto prices using the Binance WebSocket API.
 
-## 🚀 Features
+## Features
 
-- 📈 **Live Crypto Prices** – Stay updated with real-time price changes.
-- 🔀 **Multi-Crypto Support** – Track multiple cryptocurrencies at once.
-- 📊 **24h Price Change** – See how your favourite coins perform over the last 24 hours.
+- Real-time Crypto Prices
+- Multi-Crypto Support
+- 24h Price Percentage Change
 
-## 📥 How to Install
+## Installation
 
-> [!NOTE] > **Why isn't this on the App Store?**  
-> Because publishing apps cost money, and I’d rather HODL my crypto. 😅
+> [!NOTE]
+> **Why not in the App Store?**  
+> Because publishing apps cost money, and I’d rather HODL my crypto.
 
 1. Download and unzip **`CryptoTicker.zip`** from the [latest release](https://github.com/AttackOnMorty/crypto-ticker/releases).
 2. Move **CryptoTicker** to your **Applications** folder.
-3. macOS will likely complain that this app is "unverified." To open it anyway:
+3. Open the app. macOS will likely complain that this app is "unverified."
    - Go to **System Preferences** → **Security & Privacy**.
    - Under the **Security** section, find the warning about **CryptoTicker**.
    - Click **"Open Anyway"** to trust the app.
