@@ -87,13 +87,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         menu.addItem(.separator())
-        
-        // Add utility items
-        menu.addItem(createSelectedCryptoStatusMenuItem())
-        menu.addItem(createUnselectedCryptoStatusMenuItem())
-        menu.addItem(createRefreshMenuItem())
-        menu.addItem(createAboutMenuItem())
-        menu.addItem(.separator())
         menu.addItem(createQuitMenuItem())
         
         return menu
@@ -129,50 +122,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             isConnected: isConnected
         )
         
-        return item
-    }
-    
-    private func createSelectedCryptoStatusMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Selected cryptos: Real-time updates", action: nil, keyEquivalent: "")
-        item.isEnabled = false // Make it non-clickable
-        
-        // Style it as a subtitle
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.secondaryLabelColor
-        ]
-        item.attributedTitle = NSAttributedString(string: "Selected cryptos: Real-time updates", attributes: attributes)
-        
-        return item
-    }
-    
-    private func createUnselectedCryptoStatusMenuItem() -> NSMenuItem {
-        let updateTime = webSocketManager.getTimeSinceLastUpdate()
-        let refreshMinutes = Int(AppConfiguration.Defaults.allPricesRefreshInterval / 60)
-        let combinedText = "Unselected cryptos: Last updated \(updateTime) (Refreshes every \(refreshMinutes) mins)"
-        
-        let item = NSMenuItem(title: combinedText, action: nil, keyEquivalent: "")
-        item.isEnabled = false // Make it non-clickable
-        
-        // Style it as a subtitle
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.secondaryLabelColor
-        ]
-        item.attributedTitle = NSAttributedString(string: combinedText, attributes: attributes)
-        
-        return item
-    }
-    
-    private func createRefreshMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "🔄 Refresh Now", action: #selector(refreshPrices), keyEquivalent: "r")
-        item.target = self
-        return item
-    }
-    
-    private func createAboutMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "About CryptoTicker", action: #selector(showAbout), keyEquivalent: "")
-        item.target = self
         return item
     }
     
@@ -233,7 +182,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let changeValue = Double(change.replacingOccurrences(of: "%", with: "").replacingOccurrences(of: "+", with: "")) else {
             return change
         }
-        return String(format: "%+.1f%%", changeValue)
+        return String(format: "%+.2f%%", changeValue)
     }
     
     // MARK: - Status Bar Updates
@@ -284,22 +233,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         webSocketManager.toggleCryptoSelection(symbol)
         logger.info("Toggled crypto selection: \(symbol)")
-    }
-    
-    @objc private func refreshPrices() {
-        logger.info("Manual price refresh requested")
-        Task {
-            await webSocketManager.fetchAllCryptoPrices()
-        }
-    }
-    
-    @objc private func showAbout() {
-        let alert = NSAlert()
-        alert.messageText = AppConfiguration.appName
-        alert.informativeText = "A simple cryptocurrency price tracker for your macOS menu bar.\n\nVersion \(AppConfiguration.version)\nBuilt with Swift and SwiftUI"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
     }
     
     @objc private func updateMenu() {

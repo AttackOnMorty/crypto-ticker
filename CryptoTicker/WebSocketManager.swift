@@ -290,33 +290,32 @@ class WebSocketManager: ObservableObject {
     
     private func formatPrice(_ price: String) -> String {
         guard let priceDouble = Double(price) else { return price }
-        
+
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.groupingSeparator = ","
         formatter.usesGroupingSeparator = true
-        
+
         // Dynamic precision based on price range
         formatter.maximumFractionDigits = {
             switch priceDouble {
-            case 100...: return 0
-            case 1..<100: return 1
-            case 0.1..<1: return 3
-            default: return 8
+            case 1000...: return 0  // >= 1000, no decimal digits
+            case 1..<1000: return 2  // >= 1, 2 decimal digits
+            default: return 4         // < 1, 4 decimal digits
             }
         }()
-        
+
         return formatter.string(from: NSNumber(value: priceDouble)) ?? price
     }
     
     private func formatPercent(_ percent: String) -> String {
         guard let percentDouble = Double(percent) else { return percent }
-        
+
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 1
+        formatter.maximumFractionDigits = 2
         formatter.positivePrefix = "+"
-        
+
         return formatter.string(from: NSNumber(value: percentDouble)) ?? percent
     }
     
