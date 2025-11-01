@@ -14,7 +14,7 @@
 
 > [!NOTE]
 > **Why not in the App Store?**  
-> Because publishing apps cost money, and I’d rather HODL my crypto.
+> Because publishing apps cost money, and I’d rather **HODL** my crypto.
 
 1. Download and unzip **`CryptoTicker.zip`** from the [latest release](https://github.com/AttackOnMorty/crypto-ticker/releases).
 2. Move **CryptoTicker** to your **Applications** folder.
