@@ -14,12 +14,11 @@ struct CryptoTickerApp: App {
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "CryptoTickerApp")
 
     init() {
-        // Validate configuration on startup
         guard AppConfiguration.validate() else {
             logger.error("Configuration validation failed")
             fatalError("Invalid app configuration")
         }
-        
+
         logger.info("CryptoTicker app initialized successfully")
     }
 
