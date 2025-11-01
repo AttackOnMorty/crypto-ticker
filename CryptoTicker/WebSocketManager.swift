@@ -25,13 +25,10 @@ struct CryptoCurrency {
         CryptoCurrency(code: "BTC", name: "Bitcoin", symbol: "btcusdt", icon: "₿"),
         CryptoCurrency(code: "ETH", name: "Ethereum", symbol: "ethusdt", icon: "Ξ"),
         CryptoCurrency(code: "XRP", name: "XRP", symbol: "xrpusdt", icon: "✕"),
-        CryptoCurrency(code: "SOL", name: "Solana", symbol: "solusdt", icon: "S"),
         CryptoCurrency(code: "BNB", name: "BNB", symbol: "bnbusdt", icon: "B"),
+        CryptoCurrency(code: "SOL", name: "Solana", symbol: "solusdt", icon: "S"),
         CryptoCurrency(code: "DOGE", name: "Dogecoin", symbol: "dogeusdt", icon: "Ɖ"),
-        CryptoCurrency(code: "ADA", name: "Cardano", symbol: "adausdt", icon: "₳"),
-        CryptoCurrency(code: "TRX", name: "TRON", symbol: "trxusdt", icon: "T"),
-        CryptoCurrency(code: "LINK", name: "Chainlink", symbol: "linkusdt", icon: "L"),
-        CryptoCurrency(code: "AVAX", name: "Avalanche", symbol: "avaxusdt", icon: "A")
+        CryptoCurrency(code: "TRX", name: "TRON", symbol: "trxusdt", icon: "T")
     ]
 }
 
