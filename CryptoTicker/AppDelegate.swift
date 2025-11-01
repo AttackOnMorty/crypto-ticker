@@ -191,12 +191,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                   let price = webSocketManager.prices[symbol] else {
                 return nil
             }
-            
-            let connectionStatus = webSocketManager.isConnected(for: symbol) ? "" : "!"
-            return "\(currency.icon)\(connectionStatus) \(price)"
+
+            let connectionIndicator: String
+            switch webSocketManager.connectionStates[symbol] {
+            case .connected:
+                connectionIndicator = ""
+            case .connecting:
+                connectionIndicator = "⏳"
+            case .disconnected, .error, .none:
+                connectionIndicator = "⚠️"
+            }
+
+            return "\(currency.icon) \(price) \(connectionIndicator)"
         }
-        
-        return selectedPrices.isEmpty ? "CRYPTO TICKER" : selectedPrices.joined(separator: " | ")
+
+        return selectedPrices.isEmpty ? "CRYPTO TICKER" : selectedPrices.joined(separator: "| ")
     }
 
     @objc private func statusBarButtonClicked() {}
