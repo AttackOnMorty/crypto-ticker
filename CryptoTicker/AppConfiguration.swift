@@ -19,6 +19,10 @@ struct AppConfiguration {
         static let statusBarUpdateInterval: TimeInterval = 1.0
         static let monospaceFont = "Menlo"
         static let monospaceFontSize: CGFloat = 12.0
+        /// Skip the all-currencies REST refetch if the menu reopened within this window.
+        static let menuFetchDebounce: TimeInterval = 10
+        /// Left tab-stop column positions for the aligned menu rows.
+        static let menuTabStops: [CGFloat] = [30, 80, 180, 280, 360]
     }
 
     struct WebSocket {

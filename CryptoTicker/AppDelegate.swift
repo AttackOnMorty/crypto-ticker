@@ -21,10 +21,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarTimer: Timer?
     private var lastStatusTitle: String?
 
-    /// Skip the all-currencies REST refetch if the menu was opened again within this window.
-    private let menuFetchDebounce: TimeInterval = 10
-    private static let menuTabStops: [CGFloat] = [30, 80, 180, 280, 360]
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("Application launching...")
         setupStatusBarItem()
@@ -139,7 +135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// once instead of on each per-trade refresh (F6). Only the per-row colours vary.
     private static let menuBaseAttributes: [NSAttributedString.Key: Any] = {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.tabStops = menuTabStops.map { NSTextTab(textAlignment: .left, location: $0, options: [:]) }
+        paragraphStyle.tabStops = AppConfiguration.UI.menuTabStops.map { NSTextTab(textAlignment: .left, location: $0, options: [:]) }
         let font = NSFont(name: AppConfiguration.UI.monospaceFont, size: AppConfiguration.UI.monospaceFontSize)
             ?? NSFont.monospacedSystemFont(ofSize: AppConfiguration.UI.monospaceFontSize, weight: .regular)
         return [.font: font, .paragraphStyle: paragraphStyle]
@@ -241,7 +237,7 @@ extension AppDelegate: NSMenuDelegate {
 
         // F8: only refetch all currencies if the cache is stale.
         let now = Date()
-        if let last = lastMenuFetch, now.timeIntervalSince(last) < menuFetchDebounce {
+        if let last = lastMenuFetch, now.timeIntervalSince(last) < AppConfiguration.UI.menuFetchDebounce {
             return
         }
         lastMenuFetch = now
