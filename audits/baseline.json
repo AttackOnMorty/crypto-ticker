@@ -1,16 +1,73 @@
 {
   "schema": 1,
   "generated": "2026-05-25",
-  "last_run": "2026-05-25-run2",
-  "commit": "22a6aca",
+  "last_run": "2026-05-25-run3",
+  "commit": "ad41267",
   "scope": "CryptoTicker/ (8 Swift files) + SwiftPM harness (Package.swift, Tests/) + entitlements",
   "resolved_pass": {
     "date": "2026-05-25",
     "method": "TDD via SwiftPM (swift test, 47 tests); structural/UI/concurrency fixes build-verified with swift build. xcodebuild broken in env — Xcode app build + the F1 wifi off->on run-verify to be confirmed by the owner.",
     "note": "run2's 13 findings: 11 resolved, 2 accepted by design (F6, F10). Per-task commits a7788e2..22a6aca."
   },
-  "counts_status": { "open": 0, "accepted": 4, "resolved": 31 },
+  "counts_status": { "open": 5, "accepted": 5, "resolved": 31 },
   "findings": [
+    {
+      "id": "ping-stale-task-cancels-healthy-socket",
+      "report_ref": "run3-F1",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:pingActiveSockets/handlePingFailure",
+      "fingerprint": "bugs:WebSocketManager.swift#ping-stale-task-cancels-healthy-socket",
+      "severity": "high",
+      "status": "open",
+      "first_seen": "2026-05-25-run3",
+      "regression_of": "ws-no-keepalive-half-open-stall (run2 F1)",
+      "evidence": "sendPing completion captures only `symbol`, not the pinged task. After socket A fails and is replaced by healthy socket B, A's late ping-failure runs handlePingFailure which checks only webSocketTasks[symbol] != nil (now B) and cancels B. Ping interval (30s) overlaps backoff (>=5s), so reachable. Fix: capture pinged task, compare identity."
+    },
+    {
+      "id": "double-reconnect-on-concurrent-failure",
+      "report_ref": "run3-F2",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:handleReceive(.failure) vs handlePingFailure",
+      "fingerprint": "bugs:WebSocketManager.swift#double-reconnect-on-concurrent-failure",
+      "severity": "medium",
+      "status": "open",
+      "first_seen": "2026-05-25-run3",
+      "regression_of": "run2 F1/F2",
+      "evidence": "handleReceive(.failure) lacks the task-presence guard handlePingFailure has. If ping-failure runs first (removes task, schedules reconnect, increments attempts), the subsequent receive .failure schedules a second reconnect and double-increments reconnectAttempts. No duplicate socket (shouldReconnect guards) but backoff accounting inflated. Same root cause as run3-F1."
+    },
+    {
+      "id": "trademessage-decode-comment-overstates",
+      "report_ref": "run3-F3",
+      "aspect": "performance",
+      "location": "WebSocketManager.swift:TradeMessage (doc comment)",
+      "fingerprint": "performance:WebSocketManager.swift#trademessage-decode-comment-overstates",
+      "severity": "low",
+      "status": "open",
+      "first_seen": "2026-05-25-run3",
+      "evidence": "Comment claims decoding 'skips boxing every field' for a parse-cost win. JSONDecoder still does a full parse + a Data copy per trade, comparable to the old JSONSerialization path (possibly slightly more). Real benefit is type-safety, not speed. Correct the comment; keep TradeMessage."
+    },
+    {
+      "id": "duplicate-failure-teardown",
+      "report_ref": "run3-F4",
+      "aspect": "maintainability",
+      "location": "WebSocketManager.swift:handleReceive(.failure)/handlePingFailure",
+      "fingerprint": "maintainability:WebSocketManager.swift#duplicate-failure-teardown",
+      "severity": "low",
+      "status": "open",
+      "first_seen": "2026-05-25-run3",
+      "evidence": "Both sites independently do log -> drop task -> set .error -> scheduleReconnect with drifted guards. The duplication is the root cause of run3-F1/F2. Extract handleConnectionFailure(for:task:error:cancelTask:) with one identity check; call from both."
+    },
+    {
+      "id": "crypto-ticker-literal-not-centralized",
+      "report_ref": "run3-F5",
+      "aspect": "maintainability",
+      "location": "DisplayText.swift:StatusBarText.make",
+      "fingerprint": "maintainability:DisplayText.swift#crypto-ticker-literal-not-centralized",
+      "severity": "low",
+      "status": "open",
+      "first_seen": "2026-05-25-run3",
+      "evidence": "Empty-state title 'CRYPTO TICKER' is an inline literal while its sibling 'Loading...' was centralized to AppConfiguration.UI.loadingText. Minor inconsistency; borderline noise."
+    },
     {
       "id": "ws-no-keepalive-half-open-stall",
       "report_ref": "F1",
@@ -157,6 +214,7 @@
 
     { "id": "formatprice-rounds-large-to-whole-dollar", "aspect": "bugs", "severity": "low", "status": "accepted", "decided": "2026-05-25", "reason": "Intentional compact-bar display (>=1000 -> whole dollars); locked by PriceFormatterTests.", "fingerprint": "bugs:WebSocketManager.swift#formatprice-rounds-large-to-whole-dollar" },
     { "id": "audits-committed-to-repo", "aspect": "maintainability", "severity": "low", "status": "accepted", "decided": "2026-05-25", "reason": "Audit workflow tracks history in audits/ for run-over-run diffs; intentionally version-controlled.", "fingerprint": "maintainability:audits#audits-committed-to-repo" },
+    { "id": "rest-parse-jsonserialization-vs-typed", "aspect": "maintainability", "severity": "low", "status": "accepted", "decided": "2026-05-25", "reason": "REST fetchPrice uses JSONSerialization while WSS uses typed TradeMessage. Intentional: REST runs <=1x/symbol/open reading 2 fields and fails safe; a typed model buys nothing and forcing symmetry is abstraction for its own sake (YAGNI).", "fingerprint": "maintainability:WebSocketManager.swift#rest-parse-jsonserialization-vs-typed" },
 
     { "id": "websocket-shared-state-data-race", "aspect": "bugs", "severity": "critical", "status": "resolved", "fingerprint": "bugs:WebSocketManager.swift#websocket-shared-state-data-race" },
     { "id": "reconnect-overwrites-task-without-cancel", "aspect": "bugs", "severity": "high", "status": "resolved", "fingerprint": "bugs:WebSocketManager.swift#reconnect-overwrites-task-without-cancel" },

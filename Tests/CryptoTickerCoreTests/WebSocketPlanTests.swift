@@ -37,4 +37,22 @@ final class WebSocketPlanTests: XCTestCase {
         // F2: don't overwrite a socket established during the reconnect delay.
         XCTAssertFalse(WebSocketPlan.shouldReconnect("btcusdt", selected: ["btcusdt"], active: ["btcusdt"]))
     }
+
+    // MARK: socket identity (run3 F1/F2) — a stale callback from a replaced socket is ignored
+
+    func testIsCurrentSocketTrueForSameInstance() {
+        let task = NSObject()
+        XCTAssertTrue(WebSocketPlan.isCurrentSocket(task, current: task))
+    }
+
+    func testIsCurrentSocketFalseForDifferentInstance() {
+        // Socket A's late callback must not act on the healthy replacement socket B.
+        let a = NSObject()
+        let b = NSObject()
+        XCTAssertFalse(WebSocketPlan.isCurrentSocket(a, current: b))
+    }
+
+    func testIsCurrentSocketFalseWhenNoCurrentSocket() {
+        XCTAssertFalse(WebSocketPlan.isCurrentSocket(NSObject(), current: nil))
+    }
 }

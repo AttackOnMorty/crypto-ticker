@@ -23,6 +23,13 @@ enum WebSocketPlan {
     static func shouldReconnect(_ symbol: String, selected: [String], active: Set<String>) -> Bool {
         selected.contains(symbol) && !active.contains(symbol)
     }
+
+    /// Whether a socket callback should be acted on: only if the task that fired it is still
+    /// the current socket for the symbol. A stale callback from a socket already replaced by
+    /// a healthy reconnect is ignored — identity, not mere presence.
+    static func isCurrentSocket(_ reported: AnyObject, current: AnyObject?) -> Bool {
+        reported === current
+    }
 }
 
 /// Exponential reconnect backoff with a ceiling, so a sustained outage retries on a

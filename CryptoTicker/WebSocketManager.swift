@@ -155,15 +155,16 @@ class WebSocketManager {
         // before touching any shared state (F1).
         task.receive { [weak self] result in
             Task { @MainActor in
-                self?.handleReceive(result, for: symbol)
+                self?.handleReceive(result, for: symbol, task: task)
             }
         }
     }
 
-    private func handleReceive(_ result: Result<URLSessionWebSocketTask.Message, Error>, for symbol: String) {
-        // If the symbol was deselected (the cancel path), ignore the callback entirely —
-        // don't clobber the disconnected state or schedule a reconnect (F4).
-        guard selectedSymbols.contains(symbol) else { return }
+    private func handleReceive(_ result: Result<URLSessionWebSocketTask.Message, Error>, for symbol: String, task: URLSessionWebSocketTask) {
+        // Ignore a callback for a deselected symbol (the cancel path), or one from a socket
+        // already replaced by a healthy reconnect — identity, not mere presence (run3 F1/F2).
+        guard selectedSymbols.contains(symbol),
+              WebSocketPlan.isCurrentSocket(task, current: webSocketTasks[symbol]) else { return }
 
         switch result {
         case .success(let message):
@@ -177,11 +178,7 @@ class WebSocketManager {
             receiveMessage(for: symbol) // Continue listening
 
         case .failure(let error):
-            logger.error("WebSocket error for \(symbol): \(error.localizedDescription)")
-            // F3: drop the failed task so the diff/reconnect logic sees no active socket.
-            webSocketTasks.removeValue(forKey: symbol)
-            updateConnectionState(for: symbol, state: .error(.networkError(error)))
-            scheduleReconnect(for: symbol)
+            handleConnectionFailure(error, for: symbol, task: task)
         }
     }
 
@@ -198,14 +195,17 @@ class WebSocketManager {
         for (symbol, task) in webSocketTasks {
             task.sendPing { [weak self] error in
                 guard let error else { return } // healthy: pong handled by the framework
-                Task { @MainActor in self?.handlePingFailure(error, for: symbol) }
+                Task { @MainActor in self?.handleConnectionFailure(error, for: symbol, task: task) }
             }
         }
     }
 
-    private func handlePingFailure(_ error: Error, for symbol: String) {
-        guard let task = webSocketTasks[symbol] else { return } // already torn down
-        logger.error("Ping failed for \(symbol): \(error.localizedDescription)")
+    /// Single failure path for both receive errors and failed keepalive pings. Acts only if
+    /// `task` is still the current socket for `symbol`, so a stale callback from a socket
+    /// already replaced by a reconnect can't tear down the healthy one (run3 F1/F2/F4).
+    private func handleConnectionFailure(_ error: Error, for symbol: String, task: URLSessionWebSocketTask) {
+        guard WebSocketPlan.isCurrentSocket(task, current: webSocketTasks[symbol]) else { return }
+        logger.error("WebSocket failure for \(symbol): \(error.localizedDescription)")
         task.cancel(with: .goingAway, reason: nil)
         webSocketTasks.removeValue(forKey: symbol)
         updateConnectionState(for: symbol, state: .error(.networkError(error)))
