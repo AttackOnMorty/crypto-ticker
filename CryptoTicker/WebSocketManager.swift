@@ -226,7 +226,7 @@ class WebSocketManager {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await urlSession.data(from: url)
 
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let priceStr = json["lastPrice"] as? String,
