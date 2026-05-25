@@ -1,0 +1,247 @@
+{
+  "schema": 1,
+  "generated": "2026-05-25",
+  "commit": "392cb6b",
+  "scope": "CryptoTicker/ Swift sources + entitlements + Xcode config",
+  "resolved_pass": {
+    "date": "2026-05-25",
+    "method": "TDD via SwiftPM harness (Package.swift + Tests/, `swift test`); structural/UI/concurrency fixes build-verified with `swift build`. xcodebuild unavailable (broken IDESimulatorFoundation plugin) — Xcode app build to be confirmed by the owner.",
+    "tests": "Tests/CryptoTickerCoreTests (28 tests, all passing)",
+    "note": "All 20 defect findings resolved; 1 Low (display rounding) accepted by design and locked with tests."
+  },
+  "counts_original": { "critical": 2, "high": 6, "medium": 7, "low": 6, "total": 21 },
+  "counts_status": { "resolved": 20, "accepted": 1, "open": 0 },
+  "findings": [
+    {
+      "id": "websocket-shared-state-data-race",
+      "report_ref": "F1",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift",
+      "fingerprint": "bugs:WebSocketManager.swift#websocket-shared-state-data-race",
+      "severity": "critical",
+      "status": "resolved",
+      "resolution": "WebSocketManager (and AppDelegate) marked @MainActor; task.receive completion hops to the main actor via Task { @MainActor } before touching any shared state. All DispatchQueue/MainActor.run shims removed.",
+      "verifiedBy": "swift build (actor isolation) + run-verify"
+    },
+    {
+      "id": "reconnect-overwrites-task-without-cancel",
+      "report_ref": "F2",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:scheduleReconnect",
+      "fingerprint": "bugs:WebSocketManager.swift#reconnect-overwrites-task-without-cancel",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": "Reconnect guarded by WebSocketPlan.shouldReconnect (only if still selected AND no active task), so a live socket is never overwritten.",
+      "verifiedBy": "WebSocketPlanTests.testDoesNotReconnectWhenATaskAlreadyExists"
+    },
+    {
+      "id": "failed-task-retained-state-desync",
+      "report_ref": "F3",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:handleReceive(.failure)",
+      "fingerprint": "bugs:WebSocketManager.swift#failed-task-retained-state-desync",
+      "severity": "medium",
+      "status": "resolved",
+      "resolution": "Failed task removed from webSocketTasks in the failure branch before reconnect, so the diff/reconnect logic correctly sees no active socket.",
+      "verifiedBy": "WebSocketPlanTests.testReconnectsWhenStillSelectedAndNoActiveTask"
+    },
+    {
+      "id": "stale-receive-clobbers-disconnected-state",
+      "report_ref": "F4",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:handleReceive",
+      "fingerprint": "bugs:WebSocketManager.swift#stale-receive-clobbers-disconnected-state",
+      "severity": "medium",
+      "status": "resolved",
+      "resolution": "handleReceive returns early when the symbol is no longer selected, so a cancel-induced failure no longer clobbers .disconnected or schedules a reconnect.",
+      "verifiedBy": "WebSocketPlanTests.testDoesNotReconnectWhenDeselected + run-verify"
+    },
+    {
+      "id": "menu-replaced-while-open",
+      "report_ref": "F5",
+      "aspect": "bugs",
+      "location": "AppDelegate.swift:refreshMenuItems/menuWillOpen",
+      "fingerprint": "bugs:AppDelegate.swift#menu-replaced-while-open",
+      "severity": "medium",
+      "status": "resolved",
+      "resolution": "Menu built once; items refreshed in place via refreshMenuItems(). statusBarItem.menu is never reassigned after setup.",
+      "verifiedBy": "run-verify"
+    },
+    {
+      "id": "timer-never-invalidated",
+      "report_ref": null,
+      "aspect": "bugs",
+      "location": "AppDelegate.swift:startPriceUpdates",
+      "fingerprint": "bugs:AppDelegate.swift#timer-never-invalidated",
+      "severity": "low",
+      "status": "resolved",
+      "resolution": "Timer stored in statusBarTimer and invalidated in applicationWillTerminate and quitApp.",
+      "verifiedBy": "swift build + run-verify"
+    },
+    {
+      "id": "percent-double-format-roundtrip",
+      "report_ref": null,
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift / AppDelegate.swift",
+      "fingerprint": "bugs:WebSocketManager.swift#percent-double-format-roundtrip",
+      "severity": "low",
+      "status": "resolved",
+      "resolution": "priceChanges stores the raw change string; PriceFormatter formats once for display and parses the raw number for colour (no String->Double->String->Double round-trip).",
+      "verifiedBy": "PriceFormatterTests"
+    },
+    {
+      "id": "formatprice-rounds-large-to-whole-dollar",
+      "report_ref": null,
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:PriceFormatter.price",
+      "fingerprint": "bugs:WebSocketManager.swift#formatprice-rounds-large-to-whole-dollar",
+      "severity": "low",
+      "status": "accepted",
+      "decided": "2026-05-25",
+      "reason": "Intentional display design — a compact status bar shows whole dollars for >= 1000. Behaviour preserved and now locked by PriceFormatterTests rather than changed."
+    },
+    {
+      "id": "full-menu-rebuild-on-every-trade",
+      "report_ref": "F6",
+      "aspect": "performance",
+      "location": "AppDelegate.swift:dataDidChange",
+      "fingerprint": "performance:AppDelegate.swift#full-menu-rebuild-on-every-trade",
+      "severity": "critical",
+      "status": "resolved",
+      "resolution": "Notifications no longer rebuild the menu. dataDidChange refreshes items in place only while the menu is open; when closed it returns immediately. Status bar updates via the 1 Hz timer.",
+      "verifiedBy": "run-verify"
+    },
+    {
+      "id": "numberformatter-alloc-per-message",
+      "report_ref": "F7",
+      "aspect": "performance",
+      "location": "WebSocketManager.swift:PriceFormatter",
+      "fingerprint": "performance:WebSocketManager.swift#numberformatter-alloc-per-message",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": "PriceFormatter holds three immutable static NumberFormatters, reused on every call instead of allocating one per format.",
+      "verifiedBy": "PriceFormatterTests"
+    },
+    {
+      "id": "menuwillopen-refetches-all-rest",
+      "report_ref": "F8",
+      "aspect": "performance",
+      "location": "AppDelegate.swift:menuWillOpen",
+      "fingerprint": "performance:AppDelegate.swift#menuwillopen-refetches-all-rest",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": "Open-time REST refetch debounced (menuFetchDebounce = 10s) via lastMenuFetch; cached items shown immediately on open.",
+      "verifiedBy": "run-verify"
+    },
+    {
+      "id": "status-timer-always-fires",
+      "report_ref": "F9",
+      "aspect": "performance",
+      "location": "AppDelegate.swift:updateStatusBarTitle",
+      "fingerprint": "performance:AppDelegate.swift#status-timer-always-fires",
+      "severity": "medium",
+      "status": "resolved",
+      "resolution": "updateStatusBarTitle compares against lastStatusTitle and only assigns button.title when the text changed.",
+      "verifiedBy": "run-verify"
+    },
+    {
+      "id": "redundant-fetch-all-at-init",
+      "report_ref": "F10",
+      "aspect": "performance",
+      "location": "WebSocketManager.swift:init",
+      "fingerprint": "performance:WebSocketManager.swift#redundant-fetch-all-at-init",
+      "severity": "medium",
+      "status": "resolved",
+      "resolution": "init now calls fetchPrices(for: selectedSymbols); the other currencies are fetched lazily on first menu open.",
+      "verifiedBy": "swift build + run-verify"
+    },
+    {
+      "id": "untrusted-feed-string-rendered-unsanitized",
+      "report_ref": "F11",
+      "aspect": "security",
+      "location": "WebSocketManager.swift:PriceFormatter.price",
+      "fingerprint": "security:WebSocketManager.swift#untrusted-feed-string-rendered-unsanitized",
+      "severity": "low",
+      "status": "resolved",
+      "resolution": "PriceFormatter.price returns the placeholder \"—\" for unparseable input instead of echoing the raw feed string.",
+      "verifiedBy": "PriceFormatterTests.testPriceUnparseableReturnsPlaceholderNotRawString / testPlaceholderIsNotInjectionOfRemoteText"
+    },
+    {
+      "id": "persisted-symbols-not-validated",
+      "report_ref": "F12",
+      "aspect": "security",
+      "location": "WebSocketManager.swift:loadSelectedCryptos",
+      "fingerprint": "security:WebSocketManager.swift#persisted-symbols-not-validated",
+      "severity": "low",
+      "status": "resolved",
+      "resolution": "loadSelectedCryptos passes persisted values through CryptoCurrency.validSymbols(from:), intersecting with the known allowlist before any URL is built.",
+      "verifiedBy": "SymbolValidationTests"
+    },
+    {
+      "id": "dead-code-cluster",
+      "report_ref": "F13",
+      "aspect": "maintainability",
+      "location": "multi",
+      "fingerprint": "maintainability:multi#dead-code-cluster",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": "Deleted ContentView.swift, WebSocketError.connectionFailed/.dataParsingFailed, and AppConfiguration.appName/version/bundleIdentifier. Settings{EmptyView()} retained: a SwiftUI App must return a Scene, so it is required, not dead.",
+      "verifiedBy": "swift build (project uses synchronized file groups, so file deletion needs no pbxproj edit)"
+    },
+    {
+      "id": "theatrical-config-validation",
+      "report_ref": "F14",
+      "aspect": "maintainability",
+      "location": "AppConfiguration.swift:validate / CryptoTickerApp.swift:init",
+      "fingerprint": "maintainability:AppConfiguration.swift#theatrical-config-validation",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": "Removed validate() and the unreachable fatalError; CryptoTickerApp simplified to @main + body.",
+      "verifiedBy": "swift build + swiftc -parse CryptoTickerApp.swift"
+    },
+    {
+      "id": "stringly-typed-notification-names",
+      "report_ref": "F15",
+      "aspect": "maintainability",
+      "location": "WebSocketManager.swift + AppDelegate.swift",
+      "fingerprint": "maintainability:multi#stringly-typed-notification-names",
+      "severity": "high",
+      "status": "resolved",
+      "resolution": "Added Notification.Name.priceUpdated / .connectionStateChanged constants used by all posts and observers; dropped the unused userInfo payload.",
+      "verifiedBy": "NotificationNameTests"
+    },
+    {
+      "id": "duplicated-percent-parse-and-format",
+      "report_ref": "F16",
+      "aspect": "maintainability",
+      "location": "AppDelegate.swift / WebSocketManager.swift",
+      "fingerprint": "maintainability:multi#duplicated-percent-parse-and-format",
+      "severity": "medium",
+      "status": "resolved",
+      "resolution": "PriceFormatter is the single source for price/percent formatting; AppDelegate.formatPriceChange and the duplicated NumberFormatter were removed.",
+      "verifiedBy": "PriceFormatterTests"
+    },
+    {
+      "id": "pointless-observableobject-mixed-update-paths",
+      "report_ref": "F17",
+      "aspect": "maintainability",
+      "location": "WebSocketManager.swift",
+      "fingerprint": "maintainability:WebSocketManager.swift#pointless-observableobject-mixed-update-paths",
+      "severity": "medium",
+      "status": "resolved",
+      "resolution": "Dropped ObservableObject and all @Published wrappers (no SwiftUI observer existed). Update paths consolidated: 1 Hz timer for the status bar, in-place refresh for the open menu.",
+      "verifiedBy": "swift build"
+    },
+    {
+      "id": "magic-tabstops-and-duplicated-status-glyph",
+      "report_ref": null,
+      "aspect": "maintainability",
+      "location": "AppDelegate.swift",
+      "fingerprint": "maintainability:AppDelegate.swift#magic-tabstops-and-duplicated-status-glyph",
+      "severity": "low",
+      "status": "resolved",
+      "resolution": "Tab-stop locations hoisted to a single menuTabStops constant; status glyph (●/○) centralised in statusGlyph(isConnected:).",
+      "verifiedBy": "swift build"
+    }
+  ]
+}

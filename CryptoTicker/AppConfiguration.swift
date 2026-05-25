@@ -8,10 +8,6 @@
 import Foundation
 
 struct AppConfiguration {
-    static let appName = "CryptoTicker"
-    static let version = "1.0.0"
-    static let bundleIdentifier = "com.cryptoticker.app"
-
     struct API {
         static let binanceBaseURL = "https://api.binance.com/api/v3"
         static let binanceWebSocketURL = "wss://stream.binance.com:9443/ws"
@@ -40,13 +36,4 @@ struct AppConfiguration {
     struct Defaults {
         static let selectedCryptos = ["btcusdt"]
     }
-
-    static func validate() -> Bool {
-        guard URL(string: API.binanceBaseURL) != nil,
-              URL(string: API.binanceWebSocketURL) != nil,
-              UI.statusBarUpdateInterval > 0 else {
-            return false
-        }
-        return true
-    }
-} 
+}

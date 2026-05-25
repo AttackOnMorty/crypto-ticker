@@ -1,10 +1,13 @@
 import Foundation
 import os.log
 
+extension Notification.Name {
+    static let priceUpdated = Notification.Name("PriceUpdated")
+    static let connectionStateChanged = Notification.Name("ConnectionStateChanged")
+}
+
 enum WebSocketError: Error {
     case invalidURL
-    case connectionFailed
-    case dataParsingFailed
     case networkError(Error)
 }
 
@@ -30,30 +33,137 @@ struct CryptoCurrency {
         CryptoCurrency(code: "DOGE", name: "Dogecoin", symbol: "dogeusdt", icon: "Ɖ"),
         CryptoCurrency(code: "TRX", name: "TRON", symbol: "trxusdt", icon: "T")
     ]
+
+    /// Keeps only symbols that exist in `availableCurrencies`, preserving order. Used to
+    /// sanitize values loaded from UserDefaults so a tampered plist cannot inject an
+    /// arbitrary segment into the request URLs.
+    static func validSymbols(from raw: [String]) -> [String] {
+        let known = Set(availableCurrencies.map(\.symbol))
+        return raw.filter { known.contains($0) }
+    }
 }
 
-class WebSocketManager: ObservableObject {
-    @Published var prices: [String: String] = [:]
-    @Published var selectedSymbols: [String] = []
-    @Published var priceChanges: [String: String] = [:]
-    @Published var connectionStates: [String: ConnectionState] = [:]
-    
+/// Single source of truth for turning raw feed strings into display text.
+///
+/// Formatters are created once and reused (creating a `NumberFormatter` per call is
+/// expensive on the per-trade hot path), and they are immutable so they are safe to read
+/// from any thread. Unparseable input returns `placeholder` rather than echoing the raw,
+/// untrusted feed string back into the UI.
+enum PriceFormatter {
+    static let placeholder = "—"
+
+    private static func decimalFormatter(fractionDigits: Int) -> NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.minimumFractionDigits = fractionDigits
+        formatter.maximumFractionDigits = fractionDigits
+        return formatter
+    }
+
+    private static let wholeFormatter = decimalFormatter(fractionDigits: 0)
+    private static let twoDecimalFormatter = decimalFormatter(fractionDigits: 2)
+    private static let fourDecimalFormatter = decimalFormatter(fractionDigits: 4)
+
+    /// Formats a price with magnitude-dependent precision: >= 1000 → whole dollars,
+    /// >= 1 → 2 decimals, < 1 → 4 decimals.
+    static func price(_ raw: String) -> String {
+        guard let value = Double(raw) else { return placeholder }
+        let formatter: NumberFormatter
+        switch value {
+        case 1000...: formatter = wholeFormatter
+        case 1..<1000: formatter = twoDecimalFormatter
+        default: formatter = fourDecimalFormatter
+        }
+        return formatter.string(from: NSNumber(value: value)) ?? placeholder
+    }
+
+    /// Formats a 24h change percentage as a signed, 2-decimal value with a trailing `%`.
+    static func percent(_ raw: String) -> String {
+        guard let value = Double(raw) else { return placeholder }
+        return String(format: "%+.2f%%", value)
+    }
+
+    /// The numeric value of a raw percentage string, for choosing a colour. Parses the
+    /// raw number directly — never a previously formatted string — so there is no
+    /// format/parse round-trip.
+    static func percentValue(_ raw: String) -> Double? {
+        Double(raw)
+    }
+}
+
+/// Pure decisions about which sockets to open, close, or reconnect. Kept separate from
+/// the side-effecting socket code so the logic can be tested without live connections.
+enum WebSocketPlan {
+    /// Active sockets whose symbols are no longer selected.
+    static func symbolsToDisconnect(selected: [String], active: Set<String>) -> Set<String> {
+        active.subtracting(selected)
+    }
+
+    /// Selected symbols that have no active socket yet (selection order preserved).
+    static func symbolsToConnect(selected: [String], active: Set<String>) -> [String] {
+        selected.filter { !active.contains($0) }
+    }
+
+    /// Whether a failed socket should be reconnected: only if the symbol is still selected
+    /// and no socket currently exists for it (so a reconnect can't duplicate a live socket).
+    static func shouldReconnect(_ symbol: String, selected: [String], active: Set<String>) -> Bool {
+        selected.contains(symbol) && !active.contains(symbol)
+    }
+}
+
+/// Builds the status-bar title from already-resolved per-symbol items. Pure, so the
+/// formatting rules (separator, indicators, empty-state text) are testable without AppKit.
+enum StatusBarText {
+    struct Item {
+        let icon: String
+        let price: String
+        let indicator: String
+    }
+
+    static func indicator(for state: ConnectionState?) -> String {
+        switch state {
+        case .connected: return ""
+        case .connecting: return "⏳"
+        case .disconnected, .error, .none: return "⚠️"
+        }
+    }
+
+    static func make(items: [Item]) -> String {
+        guard !items.isEmpty else { return "CRYPTO TICKER" }
+        return items.map { "\($0.icon) \($0.price) \($0.indicator)" }.joined(separator: "| ")
+    }
+}
+
+@MainActor
+class WebSocketManager {
+    // All mutable state below is confined to the main actor. The only off-actor work is
+    // the network I/O itself, which hops back to the main actor before touching any of it.
+    var prices: [String: String] = [:]
+    var selectedSymbols: [String] = []
+    var priceChanges: [String: String] = [:]
+    var connectionStates: [String: ConnectionState] = [:]
+
     private var webSocketTasks: [String: URLSessionWebSocketTask] = [:]
     private let urlSession = URLSession(configuration: .default)
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "WebSocketManager")
-    
+
     let availableCurrencies = CryptoCurrency.availableCurrencies
-    
+
     init() {
         loadSelectedCryptos()
-        Task {
-            await fetchAllCryptoPrices()
+        // F10: only the selected symbols are shown at launch; the others are fetched
+        // lazily when the menu first opens.
+        Task { @MainActor in
+            await fetchPrices(for: selectedSymbols)
             connectWebSockets()
         }
     }
 
     private func loadSelectedCryptos() {
-        selectedSymbols = UserDefaults.standard.array(forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos) as? [String] ?? AppConfiguration.Defaults.selectedCryptos
+        let stored = UserDefaults.standard.array(forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos) as? [String] ?? AppConfiguration.Defaults.selectedCryptos
+        selectedSymbols = CryptoCurrency.validSymbols(from: stored)
     }
     
     private func saveSelectedCryptos() {
@@ -61,57 +171,50 @@ class WebSocketManager: ObservableObject {
     }
 
     func fetchAllCryptoPrices() async {
-        logger.info("Fetching prices for all \(self.availableCurrencies.count) cryptocurrencies")
-        
+        await fetchPrices(for: availableCurrencies.map(\.symbol))
+    }
+
+    func fetchPrices(for symbols: [String]) async {
+        logger.info("Fetching prices for \(symbols.count) symbols")
         await withTaskGroup(of: Void.self) { group in
-            for currency in self.availableCurrencies {
-                group.addTask {
-                    await self.fetchPrice(for: currency.symbol)
-                }
+            for symbol in symbols {
+                group.addTask { await self.fetchPrice(for: symbol) }
             }
         }
-
-        
-        logger.info("Completed fetching all cryptocurrency prices")
     }
-    
+
     private func fetchPrice(for symbol: String) async {
         guard let url = URL(string: "\(AppConfiguration.API.binanceBaseURL)/ticker/24hr?symbol=\(symbol.uppercased())") else {
             logger.error("Invalid URL for symbol: \(symbol)")
             return
         }
-        
+
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            
+
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let priceStr = json["lastPrice"] as? String,
                   let changeStr = json["priceChangePercent"] as? String else {
                 logger.error("Failed to parse price data for \(symbol)")
                 return
             }
-            
-            await MainActor.run {
-                self.prices[symbol] = self.formatPrice(priceStr)
-                self.priceChanges[symbol] = self.formatPercent(changeStr) + "%"
-                NotificationCenter.default.post(name: NSNotification.Name("PriceUpdated"), object: nil)
-            }
-            
+
+            // Already back on the main actor after the await.
+            prices[symbol] = PriceFormatter.price(priceStr)
+            priceChanges[symbol] = changeStr
+            NotificationCenter.default.post(name: .priceUpdated, object: nil)
         } catch {
             logger.error("Failed to fetch price for \(symbol): \(error.localizedDescription)")
         }
     }
 
     func connectWebSockets() {
-        let symbolsToDisconnect = Set(webSocketTasks.keys).subtracting(Set(selectedSymbols))
-        for symbol in symbolsToDisconnect {
+        let active = Set(webSocketTasks.keys)
+        for symbol in WebSocketPlan.symbolsToDisconnect(selected: selectedSymbols, active: active) {
             disconnectWebSocket(for: symbol)
         }
-
-        for symbol in selectedSymbols {
-            if webSocketTasks[symbol] == nil {
-                connectWebSocket(for: symbol)
-            }
+        for symbol in WebSocketPlan.symbolsToConnect(selected: selectedSymbols, active: active) {
+            connectWebSocket(for: symbol)
         }
     }
     
@@ -133,65 +236,66 @@ class WebSocketManager: ObservableObject {
     
     private func receiveMessage(for symbol: String) {
         guard let task = webSocketTasks[symbol] else { return }
-        
+
+        // The completion runs on URLSession's background queue; hop to the main actor
+        // before touching any shared state (F1).
         task.receive { [weak self] result in
-            guard let self = self else { return }
-
-            guard self.selectedSymbols.contains(symbol) else { return }
-            
-            switch result {
-            case .success(let message):
-                if case .connecting = self.connectionStates[symbol] {
-                    self.updateConnectionState(for: symbol, state: .connected)
-                }
-                
-                if case .string(let text) = message {
-                    self.handleIncomingData(text, for: symbol)
-                }
-                self.receiveMessage(for: symbol) // Continue listening
-                
-            case .failure(let error):
-                self.logger.error("WebSocket error for \(symbol): \(error.localizedDescription)")
-                self.updateConnectionState(for: symbol, state: .error(.networkError(error)))
-
-                if self.selectedSymbols.contains(symbol) {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfiguration.WebSocket.reconnectDelay) {
-                        if self.selectedSymbols.contains(symbol) {
-                            self.connectWebSocket(for: symbol)
-                        }
-                    }
-                }
+            Task { @MainActor in
+                self?.handleReceive(result, for: symbol)
             }
         }
     }
-    
+
+    private func handleReceive(_ result: Result<URLSessionWebSocketTask.Message, Error>, for symbol: String) {
+        // If the symbol was deselected (the cancel path), ignore the callback entirely —
+        // don't clobber the disconnected state or schedule a reconnect (F4).
+        guard selectedSymbols.contains(symbol) else { return }
+
+        switch result {
+        case .success(let message):
+            if case .connecting = connectionStates[symbol] {
+                updateConnectionState(for: symbol, state: .connected)
+            }
+            if case .string(let text) = message {
+                handleIncomingData(text, for: symbol)
+            }
+            receiveMessage(for: symbol) // Continue listening
+
+        case .failure(let error):
+            logger.error("WebSocket error for \(symbol): \(error.localizedDescription)")
+            // F3: drop the failed task so the diff/reconnect logic sees no active socket.
+            webSocketTasks.removeValue(forKey: symbol)
+            updateConnectionState(for: symbol, state: .error(.networkError(error)))
+            scheduleReconnect(for: symbol)
+        }
+    }
+
+    private func scheduleReconnect(for symbol: String) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(AppConfiguration.WebSocket.reconnectDelay * 1_000_000_000))
+            // F2/F4: reconnect only if still selected and nothing reconnected meanwhile.
+            guard WebSocketPlan.shouldReconnect(symbol, selected: selectedSymbols, active: Set(webSocketTasks.keys)) else { return }
+            connectWebSocket(for: symbol)
+        }
+    }
+
     private func handleIncomingData(_ text: String, for symbol: String) {
         guard selectedSymbols.contains(symbol) else { return }
-        
+
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let priceStr = json["p"] as? String else {
             logger.error("Failed to parse WebSocket data for \(symbol)")
             return
         }
-        
-        DispatchQueue.main.async {
-            guard self.selectedSymbols.contains(symbol) else { return }
 
-            self.prices[symbol] = self.formatPrice(priceStr)
-            NotificationCenter.default.post(name: NSNotification.Name("PriceUpdated"), object: nil)
-        }
+        prices[symbol] = PriceFormatter.price(priceStr)
+        NotificationCenter.default.post(name: .priceUpdated, object: nil)
     }
-    
+
     private func updateConnectionState(for symbol: String, state: ConnectionState) {
-        DispatchQueue.main.async {
-            self.connectionStates[symbol] = state
-            NotificationCenter.default.post(
-                name: NSNotification.Name("ConnectionStateChanged"),
-                object: nil,
-                userInfo: ["symbol": symbol, "state": state]
-            )
-        }
+        connectionStates[symbol] = state
+        NotificationCenter.default.post(name: .connectionStateChanged, object: nil)
     }
     
     func disconnectWebSockets() {
@@ -218,36 +322,6 @@ class WebSocketManager: ObservableObject {
     }
     
 
-    private func formatPrice(_ price: String) -> String {
-        guard let priceDouble = Double(price) else { return price }
-
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = ","
-        formatter.usesGroupingSeparator = true
-
-        formatter.maximumFractionDigits = {
-            switch priceDouble {
-            case 1000...: return 0  // >= 1000, no decimal digits
-            case 1..<1000: return 2  // >= 1, 2 decimal digits
-            default: return 4         // < 1, 4 decimal digits
-            }
-        }()
-
-        return formatter.string(from: NSNumber(value: priceDouble)) ?? price
-    }
-    
-    private func formatPercent(_ percent: String) -> String {
-        guard let percentDouble = Double(percent) else { return percent }
-
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 2
-        formatter.positivePrefix = "+"
-
-        return formatter.string(from: NSNumber(value: percentDouble)) ?? percent
-    }
-
     func getCurrency(for symbol: String) -> CryptoCurrency? {
         return availableCurrencies.first { $0.symbol == symbol }
     }
@@ -255,10 +329,5 @@ class WebSocketManager: ObservableObject {
     func isConnected(for symbol: String) -> Bool {
         if case .connected = connectionStates[symbol] { return true }
         return false
-    }
-    
-
-    deinit {
-        disconnectWebSockets()
     }
 }

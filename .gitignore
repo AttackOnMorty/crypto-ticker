@@ -1,0 +1,9 @@
+# SwiftPM
+.build/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
