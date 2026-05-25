@@ -17,7 +17,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Persistent menu items keyed by symbol, refreshed in place rather than rebuilt.
     private var currencyMenuItems: [String: NSMenuItem] = [:]
-    private var menuIsOpen = false
     private var lastMenuFetch: Date?
     private var statusBarTimer: Timer?
     private var lastStatusTitle: String?
@@ -212,7 +211,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Live data changed. Only the open menu needs refreshing in place; when it's closed
     /// the 1 Hz status-bar timer already covers the visible UI, so we do nothing (F6).
     @objc private func dataDidChange() {
-        guard menuIsOpen else { return }
+        guard webSocketManager.isMenuVisible else { return }
         refreshMenuItems()
     }
 
@@ -226,7 +225,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
-        menuIsOpen = true
+        webSocketManager.isMenuVisible = true
         refreshMenuItems()
 
         // F8: only refetch all currencies if the cache is stale.
@@ -242,6 +241,6 @@ extension AppDelegate: NSMenuDelegate {
     }
 
     func menuDidClose(_ menu: NSMenu) {
-        menuIsOpen = false
+        webSocketManager.isMenuVisible = false
     }
 }

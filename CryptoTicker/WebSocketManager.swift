@@ -173,6 +173,11 @@ class WebSocketManager {
     var priceChanges: [String: String] = [:]
     var connectionStates: [String: ConnectionState] = [:]
 
+    /// Set by the menu delegate. Live trade updates are only published while the menu is
+    /// visible — when it's closed the 1 Hz status-bar timer is the only consumer and reads
+    /// state directly, so a per-trade notification would be wasted work (F7).
+    var isMenuVisible = false
+
     private var webSocketTasks: [String: URLSessionWebSocketTask] = [:]
     private var reconnectAttempts: [String: Int] = [:]
     private var pingTimer: Timer?
@@ -230,10 +235,11 @@ class WebSocketManager {
                 return
             }
 
-            // Already back on the main actor after the await.
+            // Already back on the main actor after the await. No notification here (F9):
+            // the status bar reads state via its timer, and the menu refreshes explicitly
+            // after its on-open fetch batch — posting per symbol caused redundant refreshes.
             prices[symbol] = PriceFormatter.price(priceStr)
             priceChanges[symbol] = changeStr
-            NotificationCenter.default.post(name: .priceUpdated, object: nil)
         } catch {
             logger.error("Failed to fetch price for \(symbol): \(error.localizedDescription)")
         }
@@ -351,7 +357,9 @@ class WebSocketManager {
         }
 
         prices[symbol] = PriceFormatter.price(priceStr)
-        NotificationCenter.default.post(name: .priceUpdated, object: nil)
+        if isMenuVisible { // F7: only refresh the menu when it's actually on screen
+            NotificationCenter.default.post(name: .priceUpdated, object: nil)
+        }
     }
 
     private func updateConnectionState(for symbol: String, state: ConnectionState) {
