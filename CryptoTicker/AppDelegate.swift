@@ -114,7 +114,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isConnected = webSocketManager.isConnected(for: currency.symbol)
 
         item.state = webSocketManager.selectedSymbols.contains(currency.symbol) ? .on : .off
-        item.title = plainMenuTitle(for: currency, price: price, change: change, isConnected: isConnected)
         item.attributedTitle = attributedMenuTitle(for: currency, price: price, change: change, isConnected: isConnected)
     }
 
@@ -126,10 +125,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func statusGlyph(isConnected: Bool) -> String {
         isConnected ? "●" : "○"
-    }
-
-    private func plainMenuTitle(for currency: CryptoCurrency, price: String, change: String, isConnected: Bool) -> String {
-        "\(statusGlyph(isConnected: isConnected)) \(currency.icon) \(currency.code) - \(currency.name) - $\(price) (\(PriceFormatter.percent(change)))"
     }
 
     private func attributedMenuTitle(for currency: CryptoCurrency, price: String, change: String, isConnected: Bool) -> NSAttributedString {
