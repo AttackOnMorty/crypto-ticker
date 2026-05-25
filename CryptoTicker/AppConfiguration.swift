@@ -17,10 +17,8 @@ struct AppConfiguration {
         static let appTitle = "CRYPTO TICKER"
         static let loadingText = "Loading..."
         static let statusBarUpdateInterval: TimeInterval = 1.0
-        static let menuFont = "Menlo"
-        static let menuFontSize: CGFloat = 12.0
-        static let statusBarFont = "Menlo"
-        static let statusBarFontSize: CGFloat = 12.0
+        static let monospaceFont = "Menlo"
+        static let monospaceFontSize: CGFloat = 12.0
     }
 
     struct WebSocket {

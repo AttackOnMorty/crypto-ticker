@@ -49,7 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         button.title = AppConfiguration.UI.loadingText
-        button.font = NSFont(name: AppConfiguration.UI.statusBarFont, size: AppConfiguration.UI.statusBarFontSize)
+        button.font = NSFont(name: AppConfiguration.UI.monospaceFont, size: AppConfiguration.UI.monospaceFontSize)
 
         button.action = #selector(statusBarButtonClicked)
         button.target = self
@@ -137,7 +137,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         paragraphStyle.tabStops = Self.menuTabStops.map { NSTextTab(textAlignment: .left, location: $0, options: [:]) }
 
         let baseAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont(name: AppConfiguration.UI.menuFont, size: AppConfiguration.UI.menuFontSize) ?? NSFont.monospacedSystemFont(ofSize: AppConfiguration.UI.menuFontSize, weight: .regular),
+            .font: NSFont(name: AppConfiguration.UI.monospaceFont, size: AppConfiguration.UI.monospaceFontSize) ?? NSFont.monospacedSystemFont(ofSize: AppConfiguration.UI.monospaceFontSize, weight: .regular),
             .paragraphStyle: paragraphStyle
         ]
 
