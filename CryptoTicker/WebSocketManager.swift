@@ -170,10 +170,7 @@ class WebSocketManager {
 
         switch result {
         case .success(let message):
-            if case .connecting = connectionStates[symbol] {
-                updateConnectionState(for: symbol, state: .connected)
-                reconnectAttempts[symbol] = 0 // a successful connect resets the backoff
-            }
+            markConnectedIfConnecting(symbol)
             if case .string(let text) = message {
                 handleIncomingData(text, for: symbol)
             }
@@ -196,10 +193,26 @@ class WebSocketManager {
     private func pingActiveSockets() {
         for (symbol, task) in webSocketTasks {
             task.sendPing { [weak self] error in
-                guard let error else { return } // healthy: pong handled by the framework
-                Task { @MainActor in self?.handleConnectionFailure(error, for: symbol, task: task) }
+                Task { @MainActor in
+                    guard let self else { return }
+                    if let error {
+                        self.handleConnectionFailure(error, for: symbol, task: task)
+                    } else if WebSocketPlan.isCurrentSocket(task, current: self.webSocketTasks[symbol]) {
+                        // F2: a healthy pong proves the socket is live even before the first
+                        // trade prints, so promote a still-connecting socket to .connected.
+                        self.markConnectedIfConnecting(symbol)
+                    }
+                }
             }
         }
+    }
+
+    /// Promotes a `.connecting` socket to `.connected` on a liveness signal (received message
+    /// or successful ping) and resets the backoff. No-op for any other state (F2).
+    private func markConnectedIfConnecting(_ symbol: String) {
+        guard WebSocketPlan.shouldPromoteToConnected(from: connectionStates[symbol]) else { return }
+        updateConnectionState(for: symbol, state: .connected)
+        reconnectAttempts[symbol] = 0
     }
 
     /// Single failure path for both receive errors and failed keepalive pings. Acts only if

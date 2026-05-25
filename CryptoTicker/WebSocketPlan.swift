@@ -30,6 +30,14 @@ enum WebSocketPlan {
     static func isCurrentSocket(_ reported: AnyObject, current: AnyObject?) -> Bool {
         reported === current
     }
+
+    /// Whether a liveness signal (a received message or a successful keepalive ping) should
+    /// promote the connection to `.connected`. Only a `.connecting` socket promotes; a stale
+    /// signal must not resurrect a `.disconnected`/`.error` socket being torn down.
+    static func shouldPromoteToConnected(from state: ConnectionState?) -> Bool {
+        if case .connecting = state { return true }
+        return false
+    }
 }
 
 /// Exponential reconnect backoff with a ceiling, so a sustained outage retries on a

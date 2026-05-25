@@ -38,6 +38,26 @@ final class WebSocketPlanTests: XCTestCase {
         XCTAssertFalse(WebSocketPlan.shouldReconnect("btcusdt", selected: ["btcusdt"], active: ["btcusdt"]))
     }
 
+    // MARK: connected promotion (F2) — a liveness signal promotes only a connecting socket
+
+    func testPromotesToConnectedWhenConnecting() {
+        XCTAssertTrue(WebSocketPlan.shouldPromoteToConnected(from: .connecting))
+    }
+
+    func testDoesNotPromoteWhenAlreadyConnected() {
+        XCTAssertFalse(WebSocketPlan.shouldPromoteToConnected(from: .connected))
+    }
+
+    func testDoesNotPromoteFromDisconnectedOrError() {
+        // A stale liveness signal must not resurrect a torn-down socket.
+        XCTAssertFalse(WebSocketPlan.shouldPromoteToConnected(from: .disconnected))
+        XCTAssertFalse(WebSocketPlan.shouldPromoteToConnected(from: .error(.invalidURL)))
+    }
+
+    func testDoesNotPromoteFromNoState() {
+        XCTAssertFalse(WebSocketPlan.shouldPromoteToConnected(from: nil))
+    }
+
     // MARK: socket identity (run3 F1/F2) — a stale callback from a replaced socket is ignored
 
     func testIsCurrentSocketTrueForSameInstance() {
