@@ -135,15 +135,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         isConnected ? "●" : "○"
     }
 
-    private func attributedMenuTitle(for currency: CryptoCurrency, price: String, change: String, isConnected: Bool) -> NSAttributedString {
+    /// Font and tab-stop layout are identical for every row and never change, so build them
+    /// once instead of on each per-trade refresh (F6). Only the per-row colours vary.
+    private static let menuBaseAttributes: [NSAttributedString.Key: Any] = {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.tabStops = Self.menuTabStops.map { NSTextTab(textAlignment: .left, location: $0, options: [:]) }
+        paragraphStyle.tabStops = menuTabStops.map { NSTextTab(textAlignment: .left, location: $0, options: [:]) }
+        let font = NSFont(name: AppConfiguration.UI.monospaceFont, size: AppConfiguration.UI.monospaceFontSize)
+            ?? NSFont.monospacedSystemFont(ofSize: AppConfiguration.UI.monospaceFontSize, weight: .regular)
+        return [.font: font, .paragraphStyle: paragraphStyle]
+    }()
 
-        let baseAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont(name: AppConfiguration.UI.monospaceFont, size: AppConfiguration.UI.monospaceFontSize) ?? NSFont.monospacedSystemFont(ofSize: AppConfiguration.UI.monospaceFontSize, weight: .regular),
-            .paragraphStyle: paragraphStyle
-        ]
-
+    private func attributedMenuTitle(for currency: CryptoCurrency, price: String, change: String, isConnected: Bool) -> NSAttributedString {
         let statusColor: NSColor = isConnected ? .systemGreen : .systemRed
         let changeColor: NSColor = {
             guard let value = PriceFormatter.percentValue(change) else { return .secondaryLabelColor }
@@ -159,7 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             change: PriceFormatter.percent(change)
         )
 
-        let attributedString = NSMutableAttributedString(string: row.text, attributes: baseAttributes)
+        let attributedString = NSMutableAttributedString(string: row.text, attributes: Self.menuBaseAttributes)
         attributedString.addAttribute(.foregroundColor, value: statusColor, range: row.statusRange)
         attributedString.addAttribute(.foregroundColor, value: changeColor, range: row.changeRange)
 
