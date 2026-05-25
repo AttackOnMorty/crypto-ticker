@@ -20,6 +20,14 @@ final class PriceFormatterTests: XCTestCase {
         XCTAssertEqual(PriceFormatter.price("0.1234"), "0.1234")
     }
 
+    func testPriceBucketsOnMagnitudeNotSignedValue() {
+        // Bucketing must key off |value|, not the signed value, so a large negative
+        // gets whole-dollar formatting (not the < 1 four-decimal bucket) (F4).
+        XCTAssertEqual(PriceFormatter.price("-2000"), "-2,000")
+        XCTAssertEqual(PriceFormatter.price("-5"), "-5.00")
+        XCTAssertEqual(PriceFormatter.price("-0.5"), "-0.5000")
+    }
+
     // MARK: price — unparseable -> placeholder (F11, not the raw string)
 
     func testPriceUnparseableReturnsPlaceholderNotRawString() {

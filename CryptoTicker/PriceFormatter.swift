@@ -28,12 +28,12 @@ enum PriceFormatter {
     private static let twoDecimalFormatter = decimalFormatter(fractionDigits: 2)
     private static let fourDecimalFormatter = decimalFormatter(fractionDigits: 4)
 
-    /// Formats a price with magnitude-dependent precision: >= 1000 → whole dollars,
-    /// >= 1 → 2 decimals, < 1 → 4 decimals.
+    /// Formats a price with magnitude-dependent precision (keyed on |value|):
+    /// >= 1000 → whole dollars, >= 1 → 2 decimals, < 1 → 4 decimals.
     static func price(_ raw: String) -> String {
         guard let value = Double(raw), value.isFinite else { return placeholder }
         let formatter: NumberFormatter
-        switch value {
+        switch abs(value) {
         case 1000...: formatter = wholeFormatter
         case 1..<1000: formatter = twoDecimalFormatter
         default: formatter = fourDecimalFormatter
