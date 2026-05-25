@@ -38,6 +38,26 @@ final class WebSocketPlanTests: XCTestCase {
         XCTAssertFalse(WebSocketPlan.shouldReconnect("btcusdt", selected: ["btcusdt"], active: ["btcusdt"]))
     }
 
+    // MARK: residual-state cleanup (F3) — forget state for a deselected, socket-less symbol
+
+    func testForgetsTrackedSymbolNoLongerSelectedWithNoActiveSocket() {
+        // Failed-then-deselected during backoff: the task is already gone from `active`,
+        // but stale .error state and the reconnect-attempt counter linger — clear them.
+        let result = WebSocketPlan.symbolsToForget(selected: ["btcusdt"], tracked: ["btcusdt", "ethusdt"], active: [])
+        XCTAssertEqual(result, ["ethusdt"])
+    }
+
+    func testDoesNotForgetActiveSymbol() {
+        // An active socket that was deselected is handled by the disconnect path, not here.
+        let result = WebSocketPlan.symbolsToForget(selected: [], tracked: ["btcusdt"], active: ["btcusdt"])
+        XCTAssertEqual(result, [])
+    }
+
+    func testDoesNotForgetSelectedSymbol() {
+        let result = WebSocketPlan.symbolsToForget(selected: ["btcusdt"], tracked: ["btcusdt"], active: [])
+        XCTAssertEqual(result, [])
+    }
+
     // MARK: connected promotion (F2) — a liveness signal promotes only a connecting socket
 
     func testPromotesToConnectedWhenConnecting() {

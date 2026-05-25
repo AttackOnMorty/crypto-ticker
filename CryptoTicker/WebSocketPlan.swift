@@ -18,6 +18,13 @@ enum WebSocketPlan {
         selected.filter { !active.contains($0) }
     }
 
+    /// Symbols whose residual state (connection state, reconnect-attempt counter) should be
+    /// discarded: tracked but no longer selected and with no active socket. Active-but-
+    /// deselected symbols are excluded — the disconnect path already resets their state.
+    static func symbolsToForget(selected: [String], tracked: Set<String>, active: Set<String>) -> Set<String> {
+        tracked.subtracting(selected).subtracting(active)
+    }
+
     /// Whether a failed socket should be reconnected: only if the symbol is still selected
     /// and no socket currently exists for it (so a reconnect can't duplicate a live socket).
     static func shouldReconnect(_ symbol: String, selected: [String], active: Set<String>) -> Bool {

@@ -129,6 +129,14 @@ class WebSocketManager {
         for symbol in WebSocketPlan.symbolsToDisconnect(selected: selectedSymbols, active: active) {
             disconnectWebSocket(for: symbol)
         }
+        // F3: a symbol that failed (already removed from `active`) and was then deselected
+        // during its reconnect backoff would otherwise keep stale .error state and a leaked
+        // reconnect-attempt counter, since the disconnect path above never sees it.
+        let tracked = Set(connectionStates.keys).union(reconnectAttempts.keys)
+        for symbol in WebSocketPlan.symbolsToForget(selected: selectedSymbols, tracked: tracked, active: active) {
+            connectionStates.removeValue(forKey: symbol)
+            reconnectAttempts.removeValue(forKey: symbol)
+        }
         for symbol in WebSocketPlan.symbolsToConnect(selected: selectedSymbols, active: active) {
             connectWebSocket(for: symbol)
         }
