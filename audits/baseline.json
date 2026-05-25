@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "generated": "2026-05-25-162040",
+  "commit": "740d19c020ff8e6b5735b000e97dedd57ae76275",
+  "summary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 4,
+    "low": 7,
+    "total_open": 11,
+    "accepted": 0
+  },
+  "findings": [
+    {
+      "id": "non-finite-feed-values-rendered-in-ui",
+      "report_ref": "F1",
+      "aspect": "bugs",
+      "location": "PriceFormatter.swift:price+percent",
+      "severity": "Medium",
+      "status": "open",
+      "fingerprint": "non-finite-feed-values-rendered-in-ui@PriceFormatter.swift:price+percent",
+      "evidence": "Double(_:) parses inf/nan/1e400; reaches UI via handleIncomingData. No value.isFinite guard, defeating the no-echo-untrusted-feed contract."
+    },
+    {
+      "id": "healthy-socket-stuck-in-connecting-until-first-trade",
+      "report_ref": "F2",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:handleReceive",
+      "severity": "Medium",
+      "status": "open",
+      "fingerprint": "healthy-socket-stuck-in-connecting-until-first-trade@WebSocketManager.swift:handleReceive",
+      "evidence": "Only .connecting->.connected transition is on a received message; quiet pairs stay 'connecting'; successful ping does not promote state."
+    },
+    {
+      "id": "stale-error-state-and-reconnectattempts-leak-on-deselect-during-backoff",
+      "report_ref": "F3",
+      "aspect": "bugs",
+      "location": "WebSocketManager.swift:toggleCryptoSelection",
+      "severity": "Low",
+      "status": "open",
+      "fingerprint": "stale-error-state-and-reconnectattempts-leak-on-deselect-during-backoff@WebSocketManager.swift:toggleCryptoSelection",
+      "evidence": "Deselect during backoff: symbol already absent from webSocketTasks, so disconnectWebSocket never runs; connectionStates stuck at .error, reconnectAttempts leaked."
+    },
+    {
+      "id": "negative-price-falls-into-4-decimal-bucket",
+      "report_ref": "F4",
+      "aspect": "bugs",
+      "location": "PriceFormatter.swift:price",
+      "severity": "Low",
+      "status": "open",
+      "fingerprint": "negative-price-falls-into-4-decimal-bucket@PriceFormatter.swift:price",
+      "evidence": "switch keys off signed value not magnitude; price(\"-2000\")=\"-2,000.0000\". Cosmetic; non-negative feed makes it unreachable live."
+    },
+    {
+      "id": "per-trade-refreshes-all-rows-fully",
+      "report_ref": "F5",
+      "aspect": "performance",
+      "location": "AppDelegate.swift:refreshMenuItems",
+      "severity": "Medium",
+      "status": "open",
+      "fingerprint": "per-trade-refreshes-all-rows-fully@AppDelegate.swift:refreshMenuItems",
+      "evidence": ".priceUpdated posts object:nil; refreshMenuItems rebuilds all 7 rows per tick though one changed. Bounded to menu-open + <=7 rows."
+    },
+    {
+      "id": "attributed-title-allocations-per-row-per-tick",
+      "report_ref": "F6",
+      "aspect": "performance",
+      "location": "AppDelegate.swift:attributedMenuTitle",
+      "severity": "Low",
+      "status": "open",
+      "fingerprint": "attributed-title-allocations-per-row-per-tick@AppDelegate.swift:attributedMenuTitle",
+      "evidence": "Per call reallocates NSMutableParagraphStyle, 5 NSTextTabs, re-resolves NSFont(name:size:); none depend on price data."
+    },
+    {
+      "id": "connection-state-change-posts-unconditionally",
+      "report_ref": "F7",
+      "aspect": "performance",
+      "location": "WebSocketManager.swift:updateConnectionState",
+      "severity": "Low",
+      "status": "open",
+      "fingerprint": "connection-state-change-posts-unconditionally@WebSocketManager.swift:updateConnectionState",
+      "evidence": "Posts .connectionStateChanged regardless of isMenuVisible; dataDidChange early-returns when closed, so post is wasted. Inconsistent with F7 price-path gating."
+    },
+    {
+      "id": "trademessage-decodes-full-payload-per-trade",
+      "report_ref": "F8",
+      "aspect": "performance",
+      "location": "WebSocketManager.swift:TradeMessage.price",
+      "severity": "Low",
+      "status": "open",
+      "fingerprint": "trademessage-decodes-full-payload-per-trade@WebSocketManager.swift:TradeMessage.price",
+      "evidence": "Per trade JSONDecoder parses entire payload to read only 'p'. Already documented as a clarity-over-speed trade-off; candidate for accepted-by-design.",
+      "note": "Subagent recommends no change at this scale; owner may mark accepted next run."
+    },
+    {
+      "id": "dead-plain-menu-title-duplicates-row-assembly",
+      "report_ref": "F9",
+      "aspect": "maintainability",
+      "location": "AppDelegate.swift:plainMenuTitle",
+      "severity": "Medium",
+      "status": "open",
+      "fingerprint": "dead-plain-menu-title-duplicates-row-assembly@AppDelegate.swift:plainMenuTitle",
+      "evidence": "attributedTitle overrides title in AppKit; item.title never read. plainMenuTitle re-implements MenuRowText.make in a divergent format - untested drift trap."
+    },
+    {
+      "id": "menu-config-magic-values-bypass-appconfiguration",
+      "report_ref": "F10",
+      "aspect": "maintainability",
+      "location": "AppDelegate.swift:menuFetchDebounce+menuTabStops",
+      "severity": "Low",
+      "status": "open",
+      "fingerprint": "menu-config-magic-values-bypass-appconfiguration@AppDelegate.swift:menuFetchDebounce+menuTabStops",
+      "evidence": "menuFetchDebounce=10 and menuTabStops=[30,80,180,280,360] hard-coded in AppDelegate; siblings live in AppConfiguration. Convention drift."
+    },
+    {
+      "id": "duplicated-font-config-pairs",
+      "report_ref": "F11",
+      "aspect": "maintainability",
+      "location": "AppConfiguration.swift:UI",
+      "severity": "Low",
+      "status": "open",
+      "fingerprint": "duplicated-font-config-pairs@AppConfiguration.swift:UI",
+      "evidence": "menuFont==statusBarFont==Menlo and menuFontSize==statusBarFontSize==12.0; four constants for two values, no call site distinguishes. Drift risk."
+    }
+  ]
+}
