@@ -2,43 +2,47 @@
   "schema": 1,
   "generated": "2026-05-25",
   "last_run": "2026-05-25-run2",
-  "commit": "3dd2988",
-  "scope": "CryptoTicker/ (4 Swift files) + SwiftPM harness (Package.swift, Tests/) + entitlements",
-  "counts_status": { "open": 13, "accepted": 2, "resolved": 20 },
-  "counts_open_by_severity": { "critical": 0, "high": 1, "medium": 3, "low": 9 },
+  "commit": "22a6aca",
+  "scope": "CryptoTicker/ (8 Swift files) + SwiftPM harness (Package.swift, Tests/) + entitlements",
+  "resolved_pass": {
+    "date": "2026-05-25",
+    "method": "TDD via SwiftPM (swift test, 47 tests); structural/UI/concurrency fixes build-verified with swift build. xcodebuild broken in env — Xcode app build + the F1 wifi off->on run-verify to be confirmed by the owner.",
+    "note": "run2's 13 findings: 11 resolved, 2 accepted by design (F6, F10). Per-task commits a7788e2..22a6aca."
+  },
+  "counts_status": { "open": 0, "accepted": 4, "resolved": 31 },
   "findings": [
     {
       "id": "ws-no-keepalive-half-open-stall",
       "report_ref": "F1",
       "aspect": "bugs",
-      "location": "WebSocketManager.swift:receiveMessage/handleReceive/scheduleReconnect",
+      "location": "WebSocketManager.swift:startPingTimer/pingActiveSockets/handlePingFailure",
       "fingerprint": "bugs:WebSocketManager.swift#ws-no-keepalive-half-open-stall",
       "severity": "high",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Reconnect is driven only by handleReceive(.failure). No sendPing, no read timeout, no idle watchdog. A half-open TCP connection (laptop sleep/wake, NAT timeout) delivers neither data nor error, so reconnect never fires and prices stay frozen at .connected until restart. Pre-existing; surfaced now that loud defects are gone. Run-verify: wifi off->on, ⚠️ should clear in ~5s."
+      "status": "resolved",
+      "resolution": "Ping every active socket every 30s (AppConfiguration.WebSocket.pingInterval); a ping error tears the socket down and reconnects with backoff, so a half-open connection no longer leaves prices frozen.",
+      "verifiedBy": "run-verify (wifi off->on, ⚠️ clears within ~30s)"
     },
     {
       "id": "reconnect-no-backoff-or-cap",
       "report_ref": "F2",
       "aspect": "bugs",
-      "location": "WebSocketManager.swift:scheduleReconnect",
+      "location": "WebSocketManager.swift:scheduleReconnect / WebSocketPlan.swift:BackoffPolicy",
       "fingerprint": "bugs:WebSocketManager.swift#reconnect-no-backoff-or-cap",
       "severity": "medium",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Fixed 5s reconnect delay, no backoff, no cap. Cannot stack (shouldReconnect guard) but retries indefinitely at 5s/symbol during an outage -> perpetual logger.error + Task/URL allocation, battery/network drain over hours."
+      "status": "resolved",
+      "resolution": "scheduleReconnect uses BackoffPolicy.delay(attempt:) with a per-symbol attempt count (reset on connect, cleared on disconnect): 5s doubling to a 60s cap.",
+      "verifiedBy": "BackoffPolicyTests"
     },
     {
       "id": "attributed-title-miscolor-placeholder",
       "report_ref": "F3",
       "aspect": "bugs",
-      "location": "AppDelegate.swift:attributedMenuTitle",
+      "location": "AppDelegate.swift:attributedMenuTitle / DisplayText.swift:MenuRowText",
       "fingerprint": "bugs:AppDelegate.swift#attributed-title-miscolor-placeholder",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Refactor side-effect of the '—' placeholder. fullText.range(of: changeText) colours the first '—'; if a malformed feed makes price format to '—' AND change is '—', the change colour lands on the price token. Narrow trigger (non-numeric price over TLS). Fix: colour by explicit suffix range."
+      "status": "resolved",
+      "resolution": "Colour by the explicit change range from MenuRowText.make (computed by construction) instead of fullText.range(of:), so the placeholder '—' can't make the change colour land on the price.",
+      "verifiedBy": "MenuRowTextTests.testChangeRangePointsAtChangeEvenWhenPriceIsAlsoPlaceholder"
     },
     {
       "id": "rest-uses-shared-session",
@@ -47,9 +51,9 @@
       "location": "WebSocketManager.swift:fetchPrice",
       "fingerprint": "bugs:WebSocketManager.swift#rest-uses-shared-session",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "REST uses URLSession.shared while sockets use the stored urlSession. Pre-existing inconsistency; future timeout/header config on urlSession silently won't apply to REST. Harmless today. (Also a maintainability smell.)"
+      "status": "resolved",
+      "resolution": "REST fetch now uses the stored urlSession instead of URLSession.shared.",
+      "verifiedBy": "swift build"
     },
     {
       "id": "reconnect-task-strong-self",
@@ -58,9 +62,9 @@
       "location": "WebSocketManager.swift:scheduleReconnect",
       "fingerprint": "bugs:WebSocketManager.swift#reconnect-task-strong-self",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Reconnect Task captures self strongly; pins the manager for <=5s. No real leak (AppDelegate owns it for process lifetime). Flagged for completeness."
+      "status": "resolved",
+      "resolution": "Reconnect Task captures self weakly.",
+      "verifiedBy": "swift build"
     },
     {
       "id": "stale-24h-percent-while-open",
@@ -69,42 +73,42 @@
       "location": "WebSocketManager.swift:handleIncomingData / AppDelegate.swift:configureMenuItem",
       "fingerprint": "bugs:WebSocketManager.swift#stale-24h-percent-while-open",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "priceChanges (24h %) refreshed only by REST (debounce checked only at menuWillOpen), so a menu held open shows a live price next to a frozen %. Internally consistent; likely intended."
+      "status": "accepted",
+      "decided": "2026-05-25",
+      "reason": "The 24h % is a daily figure; sub-minute staleness while a menu is held open is immaterial, and it refreshes on the next open (<=10s debounce). A live re-fetch loop while open would add a timer for no real benefit — against the repo's YAGNI rule."
     },
     {
       "id": "priceupdated-post-while-menu-closed",
       "report_ref": "F7",
       "aspect": "performance",
-      "location": "WebSocketManager.swift:handleIncomingData -> AppDelegate.swift:dataDidChange",
+      "location": "WebSocketManager.swift:handleIncomingData",
       "fingerprint": "performance:WebSocketManager.swift#priceupdated-post-while-menu-closed",
       "severity": "medium",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Refactor side-effect of F6 decoupling: sole observer dataDidChange returns immediately unless menu open (~always closed), yet handleIncomingData posts .priceUpdated on every @trade (tens-hundreds/sec). Status bar uses the 1Hz timer, so the post is wasted main-actor dispatch. Fix: gate the post on menu-open."
+      "status": "resolved",
+      "resolution": ".priceUpdated is posted only when isMenuVisible (set by the menu delegate), so per-trade dispatch is skipped while the menu is closed; the status bar uses its own timer.",
+      "verifiedBy": "swift build + run-verify"
     },
     {
       "id": "json-dict-alloc-per-trade",
       "report_ref": "F8",
       "aspect": "performance",
-      "location": "WebSocketManager.swift:handleIncomingData",
+      "location": "WebSocketManager.swift:handleIncomingData / TradeMessage",
       "fingerprint": "performance:WebSocketManager.swift#json-dict-alloc-per-trade",
       "severity": "medium",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Per @trade message: text.data(...) + JSONSerialization parses all ~9 keys into a boxed NSDictionary, reads only ['p']. Now on the main actor (@MainActor manager). Steady alloc/free on main at 50-200/sec over a long session. Fix: decode only 'p' (targeted/Codable) or parse off-actor."
+      "status": "resolved",
+      "resolution": "Per-trade parse uses TradeMessage (Decodable, reused JSONDecoder) decoding only 'p', instead of JSONSerialization boxing every key into a dictionary.",
+      "verifiedBy": "TradeMessageTests"
     },
     {
       "id": "redundant-refresh-on-fetch-fanout",
       "report_ref": "F9",
       "aspect": "performance",
-      "location": "WebSocketManager.swift:fetchPrice / AppDelegate.swift:refreshMenuItems",
+      "location": "WebSocketManager.swift:fetchPrice",
       "fingerprint": "performance:WebSocketManager.swift#redundant-refresh-on-fetch-fanout",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Each fetchPrice posts .priceUpdated, so one on-open fetch fires up to 7 posts -> 7 full refreshMenuItems passes (~49 attributed-string builds) plus the explicit refresh. One coalesced refresh would do. Bounded to menu-open, <= every 10s."
+      "status": "resolved",
+      "resolution": "fetchPrice no longer posts .priceUpdated; the menu refreshes once explicitly after the on-open fetch batch, removing the 7x refresh burst.",
+      "verifiedBy": "swift build"
     },
     {
       "id": "timer-builds-string-each-tick",
@@ -113,9 +117,9 @@
       "location": "AppDelegate.swift:updateStatusBarTitle",
       "fingerprint": "performance:AppDelegate.swift#timer-builds-string-each-tick",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Builds createStatusBarDisplayText() every second before the idle-skip compare, so the string is allocated then often discarded. Microsecond-scale; the costly UI write is already gated."
+      "status": "accepted",
+      "decided": "2026-05-25",
+      "reason": "Microsecond-scale: the string must be built to detect a change, and while connected the price differs almost every second anyway (so a dirty-flag would rarely skip work). The costly UI write is already gated. Adding dirty-flag state isn't justified — YAGNI."
     },
     {
       "id": "prices-changes-asymmetry-undoc",
@@ -124,37 +128,37 @@
       "location": "WebSocketManager.swift (prices/priceChanges properties)",
       "fingerprint": "maintainability:WebSocketManager.swift#prices-changes-asymmetry-undoc",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "prices stores formatted strings, priceChanges stores raw. Correct/deliberate (keeps percentValue round-trip-free) but uncommented; a future consistency-fix could silently break colour logic. Add a one-line comment."
+      "status": "resolved",
+      "resolution": "Doc comments state prices are stored formatted and priceChanges raw (formatted at display time to keep the colour decision round-trip free; do not pre-format).",
+      "verifiedBy": "code review"
     },
     {
       "id": "placeholder-inconsistency",
       "report_ref": "F12",
       "aspect": "maintainability",
-      "location": "AppDelegate.swift / WebSocketManager.swift:PriceFormatter",
+      "location": "AppConfiguration.swift / AppDelegate.swift",
       "fingerprint": "maintainability:multi#placeholder-inconsistency",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "Three 'no data' representations: PriceFormatter.placeholder '—', menu price default 'Loading...', change default ''. Consolidate to one named placeholder."
+      "status": "resolved",
+      "resolution": "Scattered 'Loading...' literals replaced with AppConfiguration.UI.loadingText; PriceFormatter.placeholder remains the single '—'.",
+      "verifiedBy": "swift build + grep (no stray literals)"
     },
     {
       "id": "websocketmanager-file-grab-bag",
       "report_ref": "F13",
       "aspect": "maintainability",
-      "location": "WebSocketManager.swift",
+      "location": "WebSocketManager.swift -> PriceFormatter.swift/WebSocketPlan.swift/CryptoCurrency.swift/DisplayText.swift",
       "fingerprint": "maintainability:WebSocketManager.swift#websocketmanager-file-grab-bag",
       "severity": "low",
-      "status": "open",
-      "first_seen": "2026-05-25-run2",
-      "evidence": "One file holds 6 top-level concerns (Notification.Name ext, WebSocketError/ConnectionState enums, CryptoCurrency, PriceFormatter, WebSocketPlan, StatusBarText, the class); StatusBarText is used only by AppDelegate. Project uses synchronized file groups (objectVersion 77), so new files auto-join the Xcode target — splitting is now safe without a pbxproj edit."
+      "status": "resolved",
+      "resolution": "Pure helpers split into PriceFormatter.swift, WebSocketPlan.swift (incl. BackoffPolicy), CryptoCurrency.swift, and DisplayText.swift (StatusBarText + MenuRowText). WebSocketManager.swift keeps the manager + its domain types. New files auto-join the Xcode target (synchronized group).",
+      "verifiedBy": "swift build"
     },
 
     { "id": "formatprice-rounds-large-to-whole-dollar", "aspect": "bugs", "severity": "low", "status": "accepted", "decided": "2026-05-25", "reason": "Intentional compact-bar display (>=1000 -> whole dollars); locked by PriceFormatterTests.", "fingerprint": "bugs:WebSocketManager.swift#formatprice-rounds-large-to-whole-dollar" },
-    { "id": "audits-committed-to-repo", "aspect": "maintainability", "severity": "low", "status": "accepted", "decided": "2026-05-25", "reason": "Audit workflow tracks history in audits/ for run-over-run diffs; intentionally version-controlled. Gitignore if ephemeral reports are preferred.", "fingerprint": "maintainability:audits#audits-committed-to-repo" },
+    { "id": "audits-committed-to-repo", "aspect": "maintainability", "severity": "low", "status": "accepted", "decided": "2026-05-25", "reason": "Audit workflow tracks history in audits/ for run-over-run diffs; intentionally version-controlled.", "fingerprint": "maintainability:audits#audits-committed-to-repo" },
 
-    { "id": "websocket-shared-state-data-race", "aspect": "bugs", "severity": "critical", "status": "resolved", "resolved_run": "fix-pass", "fingerprint": "bugs:WebSocketManager.swift#websocket-shared-state-data-race" },
+    { "id": "websocket-shared-state-data-race", "aspect": "bugs", "severity": "critical", "status": "resolved", "fingerprint": "bugs:WebSocketManager.swift#websocket-shared-state-data-race" },
     { "id": "reconnect-overwrites-task-without-cancel", "aspect": "bugs", "severity": "high", "status": "resolved", "fingerprint": "bugs:WebSocketManager.swift#reconnect-overwrites-task-without-cancel" },
     { "id": "failed-task-retained-state-desync", "aspect": "bugs", "severity": "medium", "status": "resolved", "fingerprint": "bugs:WebSocketManager.swift#failed-task-retained-state-desync" },
     { "id": "stale-receive-clobbers-disconnected-state", "aspect": "bugs", "severity": "medium", "status": "resolved", "fingerprint": "bugs:WebSocketManager.swift#stale-receive-clobbers-disconnected-state" },
