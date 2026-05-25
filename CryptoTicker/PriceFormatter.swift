@@ -31,7 +31,7 @@ enum PriceFormatter {
     /// Formats a price with magnitude-dependent precision: >= 1000 → whole dollars,
     /// >= 1 → 2 decimals, < 1 → 4 decimals.
     static func price(_ raw: String) -> String {
-        guard let value = Double(raw) else { return placeholder }
+        guard let value = Double(raw), value.isFinite else { return placeholder }
         let formatter: NumberFormatter
         switch value {
         case 1000...: formatter = wholeFormatter
@@ -43,7 +43,7 @@ enum PriceFormatter {
 
     /// Formats a 24h change percentage as a signed, 2-decimal value with a trailing `%`.
     static func percent(_ raw: String) -> String {
-        guard let value = Double(raw) else { return placeholder }
+        guard let value = Double(raw), value.isFinite else { return placeholder }
         return String(format: "%+.2f%%", value)
     }
 
@@ -51,6 +51,7 @@ enum PriceFormatter {
     /// raw number directly — never a previously formatted string — so there is no
     /// format/parse round-trip.
     static func percentValue(_ raw: String) -> Double? {
-        Double(raw)
+        guard let value = Double(raw), value.isFinite else { return nil }
+        return value
     }
 }

@@ -32,6 +32,29 @@ final class PriceFormatterTests: XCTestCase {
         XCTAssertEqual(PriceFormatter.price("<script>"), PriceFormatter.placeholder)
     }
 
+    // MARK: price/percent — non-finite feed values -> placeholder (F1)
+
+    func testPriceNonFiniteReturnsPlaceholder() {
+        // Double("inf"/"nan"/"1e400") parses successfully to a non-finite value;
+        // it must not render as "+∞"/"NaN" in the UI.
+        XCTAssertEqual(PriceFormatter.price("inf"), PriceFormatter.placeholder)
+        XCTAssertEqual(PriceFormatter.price("Infinity"), PriceFormatter.placeholder)
+        XCTAssertEqual(PriceFormatter.price("-inf"), PriceFormatter.placeholder)
+        XCTAssertEqual(PriceFormatter.price("nan"), PriceFormatter.placeholder)
+        XCTAssertEqual(PriceFormatter.price("1e400"), PriceFormatter.placeholder)
+    }
+
+    func testPercentNonFiniteReturnsPlaceholder() {
+        XCTAssertEqual(PriceFormatter.percent("inf"), PriceFormatter.placeholder)
+        XCTAssertEqual(PriceFormatter.percent("nan"), PriceFormatter.placeholder)
+    }
+
+    func testPercentValueNilWhenNonFinite() {
+        // The colour decision must not receive NaN (NaN >= 0 is false -> spurious red).
+        XCTAssertNil(PriceFormatter.percentValue("nan"))
+        XCTAssertNil(PriceFormatter.percentValue("inf"))
+    }
+
     // MARK: percent — signed, two decimals, trailing % (F16 single source)
 
     func testPercentIsSignedTwoDecimalsWithPercentSign() {
