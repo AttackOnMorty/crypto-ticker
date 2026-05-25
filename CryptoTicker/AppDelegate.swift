@@ -48,7 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        button.title = "Loading..."
+        button.title = AppConfiguration.UI.loadingText
         button.font = NSFont(name: AppConfiguration.UI.statusBarFont, size: AppConfiguration.UI.statusBarFontSize)
 
         button.action = #selector(statusBarButtonClicked)
@@ -109,7 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configureMenuItem(_ item: NSMenuItem, for currency: CryptoCurrency) {
-        let price = webSocketManager.prices[currency.symbol] ?? "Loading..."
+        let price = webSocketManager.prices[currency.symbol] ?? AppConfiguration.UI.loadingText
         let change = webSocketManager.priceChanges[currency.symbol] ?? ""
         let isConnected = webSocketManager.isConnected(for: currency.symbol)
 

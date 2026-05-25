@@ -168,8 +168,13 @@ enum StatusBarText {
 class WebSocketManager {
     // All mutable state below is confined to the main actor. The only off-actor work is
     // the network I/O itself, which hops back to the main actor before touching any of it.
+
+    /// Formatted display strings (already through `PriceFormatter.price`).
     var prices: [String: String] = [:]
     var selectedSymbols: [String] = []
+    /// RAW 24h change strings (e.g. "2.50"), formatted at display time. Stored raw on
+    /// purpose so the colour decision (`PriceFormatter.percentValue`) parses the number
+    /// directly instead of round-tripping a formatted string — do not pre-format here.
     var priceChanges: [String: String] = [:]
     var connectionStates: [String: ConnectionState] = [:]
 

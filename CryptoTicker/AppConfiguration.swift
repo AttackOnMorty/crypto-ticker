@@ -14,6 +14,7 @@ struct AppConfiguration {
     }
 
     struct UI {
+        static let loadingText = "Loading..."
         static let statusBarUpdateInterval: TimeInterval = 1.0
         static let menuFont = "Menlo"
         static let menuFontSize: CGFloat = 12.0
