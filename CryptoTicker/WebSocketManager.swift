@@ -175,6 +175,7 @@ class WebSocketManager {
 
     private var webSocketTasks: [String: URLSessionWebSocketTask] = [:]
     private var reconnectAttempts: [String: Int] = [:]
+    private var pingTimer: Timer?
     private let urlSession = URLSession(configuration: .default)
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "WebSocketManager")
 
@@ -188,6 +189,7 @@ class WebSocketManager {
             await fetchPrices(for: selectedSymbols)
             connectWebSockets()
         }
+        startPingTimer()
     }
 
     private func loadSelectedCryptos() {
@@ -300,6 +302,33 @@ class WebSocketManager {
         }
     }
 
+    // F1: a half-open connection delivers neither data nor a `.failure`, so the receive
+    // loop alone can't detect it. Periodically ping every active socket; a ping error means
+    // the connection is dead — tear it down and reconnect (with backoff).
+    private func startPingTimer() {
+        pingTimer = Timer.scheduledTimer(withTimeInterval: AppConfiguration.WebSocket.pingInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.pingActiveSockets() }
+        }
+    }
+
+    private func pingActiveSockets() {
+        for (symbol, task) in webSocketTasks {
+            task.sendPing { [weak self] error in
+                guard let error else { return } // healthy: pong handled by the framework
+                Task { @MainActor in self?.handlePingFailure(error, for: symbol) }
+            }
+        }
+    }
+
+    private func handlePingFailure(_ error: Error, for symbol: String) {
+        guard let task = webSocketTasks[symbol] else { return } // already torn down
+        logger.error("Ping failed for \(symbol): \(error.localizedDescription)")
+        task.cancel(with: .goingAway, reason: nil)
+        webSocketTasks.removeValue(forKey: symbol)
+        updateConnectionState(for: symbol, state: .error(.networkError(error)))
+        scheduleReconnect(for: symbol)
+    }
+
     private func scheduleReconnect(for symbol: String) {
         let attempt = reconnectAttempts[symbol, default: 0]
         reconnectAttempts[symbol] = attempt + 1
@@ -332,6 +361,7 @@ class WebSocketManager {
     
     func disconnectWebSockets() {
         logger.info("Disconnecting all WebSockets")
+        pingTimer?.invalidate()
         webSocketTasks.keys.forEach { disconnectWebSocket(for: $0) }
     }
     
