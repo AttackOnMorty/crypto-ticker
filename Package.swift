@@ -25,6 +25,7 @@ let package = Package(
                 "WebSocketManager.swift",
                 "AppConfiguration.swift",
                 "AppDelegate.swift",
+                "DisplayText.swift",
             ]
         ),
         .testTarget(

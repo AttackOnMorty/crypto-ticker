@@ -148,15 +148,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return value >= 0 ? .systemGreen : .systemRed
         }()
 
-        let changeText = PriceFormatter.percent(change)
-        let fullText = "\(statusGlyph(isConnected: isConnected))\t\(currency.icon) \(currency.code)\t\(currency.name)\t$\(price)\t\(changeText)"
+        let row = MenuRowText.make(
+            glyph: statusGlyph(isConnected: isConnected),
+            icon: currency.icon,
+            code: currency.code,
+            name: currency.name,
+            price: price,
+            change: PriceFormatter.percent(change)
+        )
 
-        let attributedString = NSMutableAttributedString(string: fullText, attributes: baseAttributes)
-        attributedString.addAttribute(.foregroundColor, value: statusColor, range: NSRange(location: 0, length: 1))
-
-        if let changeRange = fullText.range(of: changeText) {
-            attributedString.addAttribute(.foregroundColor, value: changeColor, range: NSRange(changeRange, in: fullText))
-        }
+        let attributedString = NSMutableAttributedString(string: row.text, attributes: baseAttributes)
+        attributedString.addAttribute(.foregroundColor, value: statusColor, range: row.statusRange)
+        attributedString.addAttribute(.foregroundColor, value: changeColor, range: row.changeRange)
 
         return attributedString
     }
