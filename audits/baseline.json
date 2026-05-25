@@ -6,9 +6,9 @@
     "critical": 0,
     "high": 0,
     "medium": 4,
-    "low": 7,
-    "total_open": 11,
-    "accepted": 0
+    "low": 6,
+    "total_open": 10,
+    "accepted": 1
   },
   "findings": [
     {
@@ -87,10 +87,11 @@
       "aspect": "performance",
       "location": "WebSocketManager.swift:TradeMessage.price",
       "severity": "Low",
-      "status": "open",
+      "status": "accepted",
+      "reason": "Deliberate clarity-over-speed trade-off (typed decode over a fragile manual scan); negligible cost at <=7 symbols and invisible to users. A faster manual extractor would be more fragile against the known Binance schema for no perceivable gain.",
+      "decided": "2026-05-25",
       "fingerprint": "trademessage-decodes-full-payload-per-trade@WebSocketManager.swift:TradeMessage.price",
-      "evidence": "Per trade JSONDecoder parses entire payload to read only 'p'. Already documented as a clarity-over-speed trade-off; candidate for accepted-by-design.",
-      "note": "Subagent recommends no change at this scale; owner may mark accepted next run."
+      "evidence": "Per trade JSONDecoder parses entire payload to read only 'p'. Already documented as a clarity-over-speed trade-off."
     },
     {
       "id": "dead-plain-menu-title-duplicates-row-assembly",
