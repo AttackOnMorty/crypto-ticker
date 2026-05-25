@@ -1,16 +1,38 @@
 {
   "schema": 1,
   "generated": "2026-05-25",
-  "last_run": "2026-05-25-run3",
-  "commit": "ad41267",
+  "last_run": "2026-05-25-run4",
+  "commit": "99aa2b0",
   "scope": "CryptoTicker/ (8 Swift files) + SwiftPM harness (Package.swift, Tests/) + entitlements",
-  "resolved_pass": {
+  "run4": {
     "date": "2026-05-25",
-    "method": "TDD via SwiftPM (swift test, 43 tests); concurrency/UI fixes build-verified. xcodebuild broken in env — Xcode app build + wifi off->on run-verify to be confirmed by the owner.",
-    "note": "run3's 5 findings all resolved: F1/F2/F4 unified into handleConnectionFailure with WebSocketPlan.isCurrentSocket identity guard; F3 comment corrected; F5 app title centralized. Per-task commits 0567fb7..ab37031."
+    "method": "4 parallel read-only aspect subagents; findings verified against source by orchestrator. swift test (43 passing). xcodebuild broken in env.",
+    "note": "run3's 5 findings re-confirmed resolved and holding. No new bugs/security. 2 new Low quick-wins in AppDelegate.swift (open). Rejected a 'redundant plainMenuTitle' candidate: plain title still serves AppKit type-select/accessibility."
   },
-  "counts_status": { "open": 0, "accepted": 5, "resolved": 36 },
+  "counts_status": { "open": 2, "accepted": 5, "resolved": 36 },
   "findings": [
+    {
+      "id": "attributedtitle-constants-rebuilt-per-item",
+      "report_ref": "run4-F1",
+      "aspect": "performance",
+      "location": "AppDelegate.swift:attributedMenuTitle",
+      "fingerprint": "performance:AppDelegate.swift#attributedtitle-constants-rebuilt-per-item",
+      "severity": "low",
+      "status": "open",
+      "first_seen": "2026-05-25-run4",
+      "evidence": "attributedMenuTitle (AppDelegate.swift:135-142) rebuilds an identical NSMutableParagraphStyle + 5 NSTextTab + NSFont(name:size:) lookup per call. Reached per item via configureMenuItem<-refreshMenuItems (loops 7 currencies) <- dataDidChange on every .priceUpdated while isMenuVisible. = 7 paragraph styles / 35 NSTextTab / 7 font lookups per refresh, several times/sec on an open menu, none varying by currency or trade. Same cost class the project already hoisted NumberFormatters for. Bounded to open-menu window -> Low. Fix: hoist base attributes to a computed-once stored property."
+    },
+    {
+      "id": "unused-swiftui-import",
+      "report_ref": "run4-F2",
+      "aspect": "maintainability",
+      "location": "AppDelegate.swift:9 (import SwiftUI)",
+      "fingerprint": "maintainability:AppDelegate.swift#unused-swiftui-import",
+      "severity": "low",
+      "status": "open",
+      "first_seen": "2026-05-25-run4",
+      "evidence": "AppDelegate.swift imports SwiftUI but uses no SwiftUI symbol (grep for @State/@Environment/View/some View/@Published returns nothing; only Cocoa/Foundation/os.log types used). SwiftUI is needed only by the @main shim in CryptoTickerApp.swift. Dead import; delete line 9."
+    },
     {
       "id": "ping-stale-task-cancels-healthy-socket",
       "report_ref": "run3-F1",
