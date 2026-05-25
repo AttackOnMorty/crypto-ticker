@@ -113,6 +113,16 @@ enum WebSocketPlan {
     }
 }
 
+/// Exponential reconnect backoff with a ceiling, so a sustained outage retries on a
+/// widening interval (base → cap) instead of a fixed-rate hammer.
+enum BackoffPolicy {
+    static func delay(attempt: Int) -> TimeInterval {
+        let exponent = Double(min(max(attempt, 0), 32)) // clamp to avoid overflow
+        let delay = AppConfiguration.WebSocket.reconnectDelay * pow(2, exponent)
+        return min(delay, AppConfiguration.WebSocket.maxReconnectDelay)
+    }
+}
+
 /// Builds the status-bar title from already-resolved per-symbol items. Pure, so the
 /// formatting rules (separator, indicators, empty-state text) are testable without AppKit.
 enum StatusBarText {
@@ -146,6 +156,7 @@ class WebSocketManager {
     var connectionStates: [String: ConnectionState] = [:]
 
     private var webSocketTasks: [String: URLSessionWebSocketTask] = [:]
+    private var reconnectAttempts: [String: Int] = [:]
     private let urlSession = URLSession(configuration: .default)
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "WebSocketManager")
 
@@ -255,6 +266,7 @@ class WebSocketManager {
         case .success(let message):
             if case .connecting = connectionStates[symbol] {
                 updateConnectionState(for: symbol, state: .connected)
+                reconnectAttempts[symbol] = 0 // a successful connect resets the backoff
             }
             if case .string(let text) = message {
                 handleIncomingData(text, for: symbol)
@@ -271,11 +283,15 @@ class WebSocketManager {
     }
 
     private func scheduleReconnect(for symbol: String) {
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(AppConfiguration.WebSocket.reconnectDelay * 1_000_000_000))
+        let attempt = reconnectAttempts[symbol, default: 0]
+        reconnectAttempts[symbol] = attempt + 1
+        let delay = BackoffPolicy.delay(attempt: attempt) // F2: exponential backoff, capped
+        Task { @MainActor [weak self] in // F5: don't pin the manager past the delay
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self else { return }
             // F2/F4: reconnect only if still selected and nothing reconnected meanwhile.
-            guard WebSocketPlan.shouldReconnect(symbol, selected: selectedSymbols, active: Set(webSocketTasks.keys)) else { return }
-            connectWebSocket(for: symbol)
+            guard WebSocketPlan.shouldReconnect(symbol, selected: self.selectedSymbols, active: Set(self.webSocketTasks.keys)) else { return }
+            self.connectWebSocket(for: symbol)
         }
     }
 
@@ -308,6 +324,7 @@ class WebSocketManager {
 
         task.cancel(with: .goingAway, reason: nil)
         webSocketTasks.removeValue(forKey: symbol)
+        reconnectAttempts.removeValue(forKey: symbol)
         updateConnectionState(for: symbol, state: .disconnected)
     }
 

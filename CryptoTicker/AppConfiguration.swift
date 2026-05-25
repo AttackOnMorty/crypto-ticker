@@ -23,6 +23,9 @@ struct AppConfiguration {
 
     struct WebSocket {
         static let reconnectDelay: TimeInterval = 5.0
+        static let maxReconnectDelay: TimeInterval = 60.0
+        /// Send a keepalive ping this often to detect a half-open connection.
+        static let pingInterval: TimeInterval = 30.0
     }
 
     struct UserDefaultsKeys {
