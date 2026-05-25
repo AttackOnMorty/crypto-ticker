@@ -264,7 +264,9 @@ class WebSocketManager {
 
     private func updateConnectionState(for symbol: String, state: ConnectionState) {
         connectionStates[symbol] = state
-        NotificationCenter.default.post(name: .connectionStateChanged, object: nil)
+        if isMenuVisible { // F7: closed menu reads state via the 1 Hz status-bar timer instead
+            NotificationCenter.default.post(name: .connectionStateChanged, object: nil)
+        }
     }
 
     func disconnectWebSockets() {
