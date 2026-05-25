@@ -25,6 +25,11 @@ final class StatusBarTextTests: XCTestCase {
         XCTAssertEqual(StatusBarText.make(items: []), "CRYPTO TICKER")
     }
 
+    func testEmptySelectionUsesCentralizedAppTitle() {
+        // F5: the empty-state title comes from the single config constant, not an inline literal.
+        XCTAssertEqual(StatusBarText.make(items: []), AppConfiguration.UI.appTitle)
+    }
+
     func testSingleItemPreservesTrailingIndicatorSpacing() {
         XCTAssertEqual(
             StatusBarText.make(items: [.init(icon: "₿", price: "68,000", indicator: "")]),

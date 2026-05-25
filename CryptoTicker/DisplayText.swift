@@ -48,7 +48,7 @@ enum StatusBarText {
     }
 
     static func make(items: [Item]) -> String {
-        guard !items.isEmpty else { return "CRYPTO TICKER" }
+        guard !items.isEmpty else { return AppConfiguration.UI.appTitle }
         return items.map { "\($0.icon) \($0.price) \($0.indicator)" }.joined(separator: "| ")
     }
 }
