@@ -1,0 +1,36 @@
+//
+//  WebSocketPlan.swift
+//  CryptoTicker
+//
+
+import Foundation
+
+/// Pure decisions about which sockets to open, close, or reconnect. Kept separate from
+/// the side-effecting socket code so the logic can be tested without live connections.
+enum WebSocketPlan {
+    /// Active sockets whose symbols are no longer selected.
+    static func symbolsToDisconnect(selected: [String], active: Set<String>) -> Set<String> {
+        active.subtracting(selected)
+    }
+
+    /// Selected symbols that have no active socket yet (selection order preserved).
+    static func symbolsToConnect(selected: [String], active: Set<String>) -> [String] {
+        selected.filter { !active.contains($0) }
+    }
+
+    /// Whether a failed socket should be reconnected: only if the symbol is still selected
+    /// and no socket currently exists for it (so a reconnect can't duplicate a live socket).
+    static func shouldReconnect(_ symbol: String, selected: [String], active: Set<String>) -> Bool {
+        selected.contains(symbol) && !active.contains(symbol)
+    }
+}
+
+/// Exponential reconnect backoff with a ceiling, so a sustained outage retries on a
+/// widening interval (base → cap) instead of a fixed-rate hammer.
+enum BackoffPolicy {
+    static func delay(attempt: Int) -> TimeInterval {
+        let exponent = Double(min(max(attempt, 0), 32)) // clamp to avoid overflow
+        let delay = AppConfiguration.WebSocket.reconnectDelay * pow(2, exponent)
+        return min(delay, AppConfiguration.WebSocket.maxReconnectDelay)
+    }
+}

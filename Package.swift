@@ -26,6 +26,9 @@ let package = Package(
                 "AppConfiguration.swift",
                 "AppDelegate.swift",
                 "DisplayText.swift",
+                "PriceFormatter.swift",
+                "WebSocketPlan.swift",
+                "CryptoCurrency.swift",
             ]
         ),
         .testTarget(

@@ -36,134 +36,6 @@ enum ConnectionState {
     case error(WebSocketError)
 }
 
-struct CryptoCurrency {
-    let code: String
-    let name: String
-    let symbol: String
-    let icon: String
-    
-    static let availableCurrencies = [
-        CryptoCurrency(code: "BTC", name: "Bitcoin", symbol: "btcusdt", icon: "₿"),
-        CryptoCurrency(code: "ETH", name: "Ethereum", symbol: "ethusdt", icon: "Ξ"),
-        CryptoCurrency(code: "XRP", name: "XRP", symbol: "xrpusdt", icon: "✕"),
-        CryptoCurrency(code: "BNB", name: "BNB", symbol: "bnbusdt", icon: "B"),
-        CryptoCurrency(code: "SOL", name: "Solana", symbol: "solusdt", icon: "S"),
-        CryptoCurrency(code: "DOGE", name: "Dogecoin", symbol: "dogeusdt", icon: "Ɖ"),
-        CryptoCurrency(code: "TRX", name: "TRON", symbol: "trxusdt", icon: "T")
-    ]
-
-    /// Keeps only symbols that exist in `availableCurrencies`, preserving order. Used to
-    /// sanitize values loaded from UserDefaults so a tampered plist cannot inject an
-    /// arbitrary segment into the request URLs.
-    static func validSymbols(from raw: [String]) -> [String] {
-        let known = Set(availableCurrencies.map(\.symbol))
-        return raw.filter { known.contains($0) }
-    }
-}
-
-/// Single source of truth for turning raw feed strings into display text.
-///
-/// Formatters are created once and reused (creating a `NumberFormatter` per call is
-/// expensive on the per-trade hot path), and they are immutable so they are safe to read
-/// from any thread. Unparseable input returns `placeholder` rather than echoing the raw,
-/// untrusted feed string back into the UI.
-enum PriceFormatter {
-    static let placeholder = "—"
-
-    private static func decimalFormatter(fractionDigits: Int) -> NumberFormatter {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.groupingSeparator = ","
-        formatter.minimumFractionDigits = fractionDigits
-        formatter.maximumFractionDigits = fractionDigits
-        return formatter
-    }
-
-    private static let wholeFormatter = decimalFormatter(fractionDigits: 0)
-    private static let twoDecimalFormatter = decimalFormatter(fractionDigits: 2)
-    private static let fourDecimalFormatter = decimalFormatter(fractionDigits: 4)
-
-    /// Formats a price with magnitude-dependent precision: >= 1000 → whole dollars,
-    /// >= 1 → 2 decimals, < 1 → 4 decimals.
-    static func price(_ raw: String) -> String {
-        guard let value = Double(raw) else { return placeholder }
-        let formatter: NumberFormatter
-        switch value {
-        case 1000...: formatter = wholeFormatter
-        case 1..<1000: formatter = twoDecimalFormatter
-        default: formatter = fourDecimalFormatter
-        }
-        return formatter.string(from: NSNumber(value: value)) ?? placeholder
-    }
-
-    /// Formats a 24h change percentage as a signed, 2-decimal value with a trailing `%`.
-    static func percent(_ raw: String) -> String {
-        guard let value = Double(raw) else { return placeholder }
-        return String(format: "%+.2f%%", value)
-    }
-
-    /// The numeric value of a raw percentage string, for choosing a colour. Parses the
-    /// raw number directly — never a previously formatted string — so there is no
-    /// format/parse round-trip.
-    static func percentValue(_ raw: String) -> Double? {
-        Double(raw)
-    }
-}
-
-/// Pure decisions about which sockets to open, close, or reconnect. Kept separate from
-/// the side-effecting socket code so the logic can be tested without live connections.
-enum WebSocketPlan {
-    /// Active sockets whose symbols are no longer selected.
-    static func symbolsToDisconnect(selected: [String], active: Set<String>) -> Set<String> {
-        active.subtracting(selected)
-    }
-
-    /// Selected symbols that have no active socket yet (selection order preserved).
-    static func symbolsToConnect(selected: [String], active: Set<String>) -> [String] {
-        selected.filter { !active.contains($0) }
-    }
-
-    /// Whether a failed socket should be reconnected: only if the symbol is still selected
-    /// and no socket currently exists for it (so a reconnect can't duplicate a live socket).
-    static func shouldReconnect(_ symbol: String, selected: [String], active: Set<String>) -> Bool {
-        selected.contains(symbol) && !active.contains(symbol)
-    }
-}
-
-/// Exponential reconnect backoff with a ceiling, so a sustained outage retries on a
-/// widening interval (base → cap) instead of a fixed-rate hammer.
-enum BackoffPolicy {
-    static func delay(attempt: Int) -> TimeInterval {
-        let exponent = Double(min(max(attempt, 0), 32)) // clamp to avoid overflow
-        let delay = AppConfiguration.WebSocket.reconnectDelay * pow(2, exponent)
-        return min(delay, AppConfiguration.WebSocket.maxReconnectDelay)
-    }
-}
-
-/// Builds the status-bar title from already-resolved per-symbol items. Pure, so the
-/// formatting rules (separator, indicators, empty-state text) are testable without AppKit.
-enum StatusBarText {
-    struct Item {
-        let icon: String
-        let price: String
-        let indicator: String
-    }
-
-    static func indicator(for state: ConnectionState?) -> String {
-        switch state {
-        case .connected: return ""
-        case .connecting: return "⏳"
-        case .disconnected, .error, .none: return "⚠️"
-        }
-    }
-
-    static func make(items: [Item]) -> String {
-        guard !items.isEmpty else { return "CRYPTO TICKER" }
-        return items.map { "\($0.icon) \($0.price) \($0.indicator)" }.joined(separator: "| ")
-    }
-}
-
 @MainActor
 class WebSocketManager {
     // All mutable state below is confined to the main actor. The only off-actor work is
@@ -206,7 +78,7 @@ class WebSocketManager {
         let stored = UserDefaults.standard.array(forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos) as? [String] ?? AppConfiguration.Defaults.selectedCryptos
         selectedSymbols = CryptoCurrency.validSymbols(from: stored)
     }
-    
+
     private func saveSelectedCryptos() {
         UserDefaults.standard.set(selectedSymbols, forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos)
     }
@@ -259,7 +131,7 @@ class WebSocketManager {
             connectWebSocket(for: symbol)
         }
     }
-    
+
     private func connectWebSocket(for symbol: String) {
         guard let url = URL(string: "\(AppConfiguration.API.binanceWebSocketURL)/\(symbol)@trade") else {
             logger.error("Invalid WebSocket URL for symbol: \(symbol)")
@@ -268,14 +140,14 @@ class WebSocketManager {
         }
 
         updateConnectionState(for: symbol, state: .connecting)
-        
+
         let task = urlSession.webSocketTask(with: url)
         webSocketTasks[symbol] = task
-        
+
         task.resume()
         receiveMessage(for: symbol)
     }
-    
+
     private func receiveMessage(for symbol: String) {
         guard let task = webSocketTasks[symbol] else { return }
 
@@ -371,13 +243,13 @@ class WebSocketManager {
         connectionStates[symbol] = state
         NotificationCenter.default.post(name: .connectionStateChanged, object: nil)
     }
-    
+
     func disconnectWebSockets() {
         logger.info("Disconnecting all WebSockets")
         pingTimer?.invalidate()
         webSocketTasks.keys.forEach { disconnectWebSocket(for: $0) }
     }
-    
+
     private func disconnectWebSocket(for symbol: String) {
         guard let task = webSocketTasks[symbol] else { return }
 
@@ -396,12 +268,11 @@ class WebSocketManager {
         saveSelectedCryptos()
         connectWebSockets()
     }
-    
 
     func getCurrency(for symbol: String) -> CryptoCurrency? {
         return availableCurrencies.first { $0.symbol == symbol }
     }
-    
+
     func isConnected(for symbol: String) -> Bool {
         if case .connected = connectionStates[symbol] { return true }
         return false

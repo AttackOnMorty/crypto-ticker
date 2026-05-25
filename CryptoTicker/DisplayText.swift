@@ -29,3 +29,26 @@ enum MenuRowText {
         )
     }
 }
+
+/// Builds the status-bar title from already-resolved per-symbol items. Pure, so the
+/// formatting rules (separator, indicators, empty-state text) are testable without AppKit.
+enum StatusBarText {
+    struct Item {
+        let icon: String
+        let price: String
+        let indicator: String
+    }
+
+    static func indicator(for state: ConnectionState?) -> String {
+        switch state {
+        case .connected: return ""
+        case .connecting: return "⏳"
+        case .disconnected, .error, .none: return "⚠️"
+        }
+    }
+
+    static func make(items: [Item]) -> String {
+        guard !items.isEmpty else { return "CRYPTO TICKER" }
+        return items.map { "\($0.icon) \($0.price) \($0.indicator)" }.joined(separator: "| ")
+    }
+}
