@@ -258,7 +258,8 @@ class WebSocketManager {
 
         prices[symbol] = PriceFormatter.price(priceStr)
         if isMenuVisible { // F7: only refresh the menu when it's actually on screen
-            NotificationCenter.default.post(name: .priceUpdated, object: nil)
+            // F5: name the changed symbol so the delegate refreshes just that one row.
+            NotificationCenter.default.post(name: .priceUpdated, object: symbol)
         }
     }
 

@@ -64,14 +64,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupObservers() {
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(dataDidChange),
+            selector: #selector(dataDidChange(_:)),
             name: .priceUpdated,
             object: nil
         )
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(dataDidChange),
+            selector: #selector(dataDidChange(_:)),
             name: .connectionStateChanged,
             object: nil
         )
@@ -106,6 +106,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let item = currencyMenuItems[currency.symbol] else { continue }
             configureMenuItem(item, for: currency)
         }
+    }
+
+    /// Refreshes a single row in place (F5) — used for the per-trade price path, which names
+    /// the one symbol that changed instead of rebuilding all rows.
+    private func refreshMenuItem(for symbol: String) {
+        guard let item = currencyMenuItems[symbol],
+              let currency = webSocketManager.getCurrency(for: symbol) else { return }
+        configureMenuItem(item, for: currency)
     }
 
     private func configureMenuItem(_ item: NSMenuItem, for currency: CryptoCurrency) {
@@ -205,9 +213,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Live data changed. Only the open menu needs refreshing in place; when it's closed
     /// the 1 Hz status-bar timer already covers the visible UI, so we do nothing (F6).
-    @objc private func dataDidChange() {
+    /// A `.priceUpdated` notification names its symbol, so only that row is refreshed (F5);
+    /// `.connectionStateChanged` carries no symbol and refreshes all rows.
+    @objc private func dataDidChange(_ notification: Notification) {
         guard webSocketManager.isMenuVisible else { return }
-        refreshMenuItems()
+        if let symbol = notification.object as? String {
+            refreshMenuItem(for: symbol)
+        } else {
+            refreshMenuItems()
+        }
     }
 
     @objc private func quitApp() {
