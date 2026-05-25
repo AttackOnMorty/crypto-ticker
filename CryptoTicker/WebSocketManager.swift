@@ -11,8 +11,10 @@ enum WebSocketError: Error {
     case networkError(Error)
 }
 
-/// A Binance `@trade` message. Only the price (`p`) is decoded — decoding into a typed
-/// struct skips boxing every field into a dictionary on the per-trade hot path (F8).
+/// A Binance `@trade` message. Decodes only the price (`p`) into a typed struct, chosen for
+/// type-safety over an untyped `[String: Any]` cast. (JSONDecoder still parses the whole
+/// payload, so the cost is comparable to JSONSerialization — this is a clarity win, not a
+/// speed one.)
 struct TradeMessage: Decodable {
     let price: String
 
