@@ -11,6 +11,24 @@ enum WebSocketError: Error {
     case networkError(Error)
 }
 
+/// A Binance `@trade` message. Only the price (`p`) is decoded — decoding into a typed
+/// struct skips boxing every field into a dictionary on the per-trade hot path (F8).
+struct TradeMessage: Decodable {
+    let price: String
+
+    private enum CodingKeys: String, CodingKey { case price = "p" }
+
+    private static let decoder = JSONDecoder()
+
+    static func price(fromJSON text: String) -> String? {
+        guard let data = text.data(using: .utf8),
+              let message = try? decoder.decode(TradeMessage.self, from: data) else {
+            return nil
+        }
+        return message.price
+    }
+}
+
 enum ConnectionState {
     case disconnected
     case connecting
@@ -298,9 +316,7 @@ class WebSocketManager {
     private func handleIncomingData(_ text: String, for symbol: String) {
         guard selectedSymbols.contains(symbol) else { return }
 
-        guard let data = text.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let priceStr = json["p"] as? String else {
+        guard let priceStr = TradeMessage.price(fromJSON: text) else {
             logger.error("Failed to parse WebSocket data for \(symbol)")
             return
         }
