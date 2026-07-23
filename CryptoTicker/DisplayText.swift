@@ -18,8 +18,8 @@ enum MenuRowText {
         let changeRange: NSRange
     }
 
-    static func make(glyph: String, icon: String, code: String, name: String, price: String, change: String) -> Row {
-        let text = "\(glyph)\t\(icon) \(code)\t\(name)\t$\(price)\t\(change)"
+    static func make(glyph: String, code: String, price: String, change: String) -> Row {
+        let text = "\(glyph)\t\(code)\t$\(price)\t\(change)"
         let fullLength = (text as NSString).length
         let changeLength = (change as NSString).length
         return Row(
@@ -34,7 +34,7 @@ enum MenuRowText {
 /// formatting rules (separator, indicators, empty-state text) are testable without AppKit.
 enum StatusBarText {
     struct Item {
-        let icon: String
+        let code: String
         let price: String
         let indicator: String
     }
@@ -49,6 +49,6 @@ enum StatusBarText {
 
     static func make(items: [Item]) -> String {
         guard !items.isEmpty else { return AppConfiguration.UI.appTitle }
-        return items.map { "\($0.icon) \($0.price) \($0.indicator)" }.joined(separator: "| ")
+        return items.map { "\($0.code) \($0.price) \($0.indicator)" }.joined(separator: "| ")
     }
 }

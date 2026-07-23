@@ -72,8 +72,6 @@ class WebSocketManager {
     private let urlSession = URLSession(configuration: .default)
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "WebSocketManager")
 
-    let availableCurrencies = CryptoCurrency.availableCurrencies
-
     init() {
         loadSelectedCryptos()
         // F10: only the selected symbols are shown at launch; the others are fetched
@@ -87,15 +85,11 @@ class WebSocketManager {
 
     private func loadSelectedCryptos() {
         let stored = UserDefaults.standard.array(forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos) as? [String] ?? AppConfiguration.Defaults.selectedCryptos
-        selectedSymbols = CryptoCurrency.validSymbols(from: stored)
+        selectedSymbols = stored.filter { SymbolFormat.isValid($0) }
     }
 
     private func saveSelectedCryptos() {
         UserDefaults.standard.set(selectedSymbols, forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos)
-    }
-
-    func fetchAllCryptoPrices() async {
-        await fetchPrices(for: availableCurrencies.map(\.symbol))
     }
 
     func fetchPrices(for symbols: [String]) async {
@@ -319,17 +313,17 @@ class WebSocketManager {
     }
 
     func toggleCryptoSelection(_ symbol: String) {
+        guard SymbolFormat.isValid(symbol) else { return }
         if let index = selectedSymbols.firstIndex(of: symbol) {
             selectedSymbols.remove(at: index)
+            prices.removeValue(forKey: symbol)
+            priceChanges.removeValue(forKey: symbol)
         } else {
             selectedSymbols.append(symbol)
+            Task { @MainActor in await fetchPrice(for: symbol) }
         }
         saveSelectedCryptos()
         connectWebSockets()
-    }
-
-    func getCurrency(for symbol: String) -> CryptoCurrency? {
-        return availableCurrencies.first { $0.symbol == symbol }
     }
 
     func isConnected(for symbol: String) -> Bool {

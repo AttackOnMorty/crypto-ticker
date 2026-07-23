@@ -32,16 +32,16 @@ final class StatusBarTextTests: XCTestCase {
 
     func testSingleItemPreservesTrailingIndicatorSpacing() {
         XCTAssertEqual(
-            StatusBarText.make(items: [.init(icon: "₿", price: "68,000", indicator: "")]),
-            "₿ 68,000 "
+            StatusBarText.make(items: [.init(code: "BTC", price: "68,000", indicator: "")]),
+            "BTC 68,000 "
         )
     }
 
     func testMultipleItemsJoinedWithSeparator() {
         let result = StatusBarText.make(items: [
-            .init(icon: "₿", price: "68,000", indicator: ""),
-            .init(icon: "Ξ", price: "2,500", indicator: "⚠️"),
+            .init(code: "BTC", price: "68,000", indicator: ""),
+            .init(code: "ETH", price: "2,500", indicator: "⚠️"),
         ])
-        XCTAssertEqual(result, "₿ 68,000 | Ξ 2,500 ⚠️")
+        XCTAssertEqual(result, "BTC 68,000 | ETH 2,500 ⚠️")
     }
 }

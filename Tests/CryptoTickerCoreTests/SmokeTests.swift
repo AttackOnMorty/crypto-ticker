@@ -3,7 +3,7 @@ import XCTest
 
 /// Confirms the harness compiles the app sources and can reach their symbols.
 final class SmokeTests: XCTestCase {
-    func testAvailableCurrenciesExposed() {
-        XCTAssertFalse(CryptoCurrency.availableCurrencies.isEmpty)
+    func testDefaultSelectedCryptosExposed() {
+        XCTAssertFalse(AppConfiguration.Defaults.selectedCryptos.isEmpty)
     }
 }

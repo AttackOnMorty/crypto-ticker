@@ -28,7 +28,6 @@ let package = Package(
                 "DisplayText.swift",
                 "PriceFormatter.swift",
                 "WebSocketPlan.swift",
-                "CryptoCurrency.swift",
                 "Symbol.swift",
                 "ExchangeInfo.swift",
                 "SymbolSearch.swift",

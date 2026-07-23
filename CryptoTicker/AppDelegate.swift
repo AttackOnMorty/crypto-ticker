@@ -17,7 +17,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Persistent menu items keyed by symbol, refreshed in place rather than rebuilt.
     private var currencyMenuItems: [String: NSMenuItem] = [:]
-    private var lastMenuFetch: Date?
     private var statusBarTimer: Timer?
     private var lastStatusTitle: String?
 
@@ -76,49 +75,56 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func createMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
-
         menu.addItem(.separator())
-
-        currencyMenuItems.removeAll()
-        for currency in webSocketManager.availableCurrencies {
-            let item = NSMenuItem(title: "", action: #selector(toggleCrypto(_:)), keyEquivalent: "")
-            item.representedObject = currency.symbol
-            item.target = self
-            currencyMenuItems[currency.symbol] = item
-            configureMenuItem(item, for: currency)
-            menu.addItem(item)
-        }
-
+        menu.addItem(createAddCryptoMenuItem())
         menu.addItem(.separator())
         menu.addItem(createQuitMenuItem())
-
         return menu
+    }
+
+    private func createAddCryptoMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Add crypto…", action: #selector(openAddCryptoPopover), keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    /// Rebuilds the per-symbol rows above the first separator for the current selection.
+    /// The selection is dynamic (search add/remove), so rows are rebuilt on each open;
+    /// per-trade updates still refresh in place via `currencyMenuItems` while open.
+    private func rebuildCurrencyRows(in menu: NSMenu) {
+        for item in currencyMenuItems.values { menu.removeItem(item) }
+        currencyMenuItems.removeAll()
+        for (offset, symbol) in webSocketManager.selectedSymbols.enumerated() {
+            let item = NSMenuItem(title: "", action: #selector(openAddCryptoPopover), keyEquivalent: "")
+            item.representedObject = symbol
+            item.target = self
+            currencyMenuItems[symbol] = item
+            configureMenuItem(item, forSymbol: symbol)
+            menu.insertItem(item, at: offset)
+        }
     }
 
     /// Updates the persistent menu items' titles/state from current data, in place — no
     /// menu rebuild and no reassigning `statusBarItem.menu` (F5/F6).
     private func refreshMenuItems() {
-        for currency in webSocketManager.availableCurrencies {
-            guard let item = currencyMenuItems[currency.symbol] else { continue }
-            configureMenuItem(item, for: currency)
+        for symbol in webSocketManager.selectedSymbols {
+            guard let item = currencyMenuItems[symbol] else { continue }
+            configureMenuItem(item, forSymbol: symbol)
         }
     }
 
     /// Refreshes a single row in place (F5) — used for the per-trade price path, which names
     /// the one symbol that changed instead of rebuilding all rows.
     private func refreshMenuItem(for symbol: String) {
-        guard let item = currencyMenuItems[symbol],
-              let currency = webSocketManager.getCurrency(for: symbol) else { return }
-        configureMenuItem(item, for: currency)
+        guard let item = currencyMenuItems[symbol] else { return }
+        configureMenuItem(item, forSymbol: symbol)
     }
 
-    private func configureMenuItem(_ item: NSMenuItem, for currency: CryptoCurrency) {
-        let price = webSocketManager.prices[currency.symbol] ?? AppConfiguration.UI.loadingText
-        let change = webSocketManager.priceChanges[currency.symbol] ?? ""
-        let isConnected = webSocketManager.isConnected(for: currency.symbol)
-
-        item.state = webSocketManager.selectedSymbols.contains(currency.symbol) ? .on : .off
-        item.attributedTitle = attributedMenuTitle(for: currency, price: price, change: change, isConnected: isConnected)
+    private func configureMenuItem(_ item: NSMenuItem, forSymbol symbol: String) {
+        let price = webSocketManager.prices[symbol] ?? AppConfiguration.UI.loadingText
+        let change = webSocketManager.priceChanges[symbol] ?? ""
+        let isConnected = webSocketManager.isConnected(for: symbol)
+        item.attributedTitle = attributedMenuTitle(forSymbol: symbol, price: price, change: change, isConnected: isConnected)
     }
 
     private func createQuitMenuItem() -> NSMenuItem {
@@ -141,7 +147,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return [.font: font, .paragraphStyle: paragraphStyle]
     }()
 
-    private func attributedMenuTitle(for currency: CryptoCurrency, price: String, change: String, isConnected: Bool) -> NSAttributedString {
+    private func attributedMenuTitle(forSymbol symbol: String, price: String, change: String, isConnected: Bool) -> NSAttributedString {
         let statusColor: NSColor = isConnected ? .systemGreen : .systemRed
         let changeColor: NSColor = {
             guard let value = PriceFormatter.percentValue(change) else { return .secondaryLabelColor }
@@ -150,9 +156,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let row = MenuRowText.make(
             glyph: statusGlyph(isConnected: isConnected),
-            icon: currency.icon,
-            code: currency.code,
-            name: currency.name,
+            code: SymbolFormat.displayCode(for: symbol),
             price: price,
             change: PriceFormatter.percent(change)
         )
@@ -160,7 +164,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let attributedString = NSMutableAttributedString(string: row.text, attributes: Self.menuBaseAttributes)
         attributedString.addAttribute(.foregroundColor, value: statusColor, range: row.statusRange)
         attributedString.addAttribute(.foregroundColor, value: changeColor, range: row.changeRange)
-
         return attributedString
     }
 
@@ -184,12 +187,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func createStatusBarDisplayText() -> String {
         let items = webSocketManager.selectedSymbols.compactMap { symbol -> StatusBarText.Item? in
-            guard let currency = webSocketManager.getCurrency(for: symbol),
-                  let price = webSocketManager.prices[symbol] else {
-                return nil
-            }
+            guard let price = webSocketManager.prices[symbol] else { return nil }
             return StatusBarText.Item(
-                icon: currency.icon,
+                code: SymbolFormat.displayCode(for: symbol),
                 price: price,
                 indicator: StatusBarText.indicator(for: webSocketManager.connectionStates[symbol])
             )
@@ -199,14 +199,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func statusBarButtonClicked() {}
 
-    @objc private func toggleCrypto(_ sender: NSMenuItem) {
-        guard let symbol = sender.representedObject as? String else {
-            logger.error("Invalid symbol in menu item")
-            return
-        }
-
-        webSocketManager.toggleCryptoSelection(symbol)
-        refreshMenuItems()
+    @objc private func openAddCryptoPopover() {
+        // Wired in Task 6.
     }
 
     /// Live data changed. Only the open menu needs refreshing in place; when it's closed
@@ -233,18 +227,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         webSocketManager.isMenuVisible = true
+        rebuildCurrencyRows(in: menu)
         refreshMenuItems()
-
-        // F8: only refetch all currencies if the cache is stale.
-        let now = Date()
-        if let last = lastMenuFetch, now.timeIntervalSince(last) < AppConfiguration.UI.menuFetchDebounce {
-            return
-        }
-        lastMenuFetch = now
-        Task { @MainActor in
-            await webSocketManager.fetchAllCryptoPrices()
-            refreshMenuItems()
-        }
     }
 
     func menuDidClose(_ menu: NSMenu) {

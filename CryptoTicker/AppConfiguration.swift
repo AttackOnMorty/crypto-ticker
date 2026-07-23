@@ -22,7 +22,7 @@ struct AppConfiguration {
         /// Skip the all-currencies REST refetch if the menu reopened within this window.
         static let menuFetchDebounce: TimeInterval = 10
         /// Left tab-stop column positions for the aligned menu rows.
-        static let menuTabStops: [CGFloat] = [30, 80, 180, 280, 360]
+        static let menuTabStops: [CGFloat] = [30, 110, 230]
     }
 
     struct WebSocket {
@@ -41,6 +41,6 @@ struct AppConfiguration {
     }
 
     struct Defaults {
-        static let selectedCryptos = ["btcusdt"]
+        static let selectedCryptos = ["btcusdt", "ethusdt"]
     }
 }
