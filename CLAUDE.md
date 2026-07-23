@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A lightweight macOS **menu bar** app showing real-time crypto prices via the Binance WebSocket + REST API. No main window — it lives entirely in the status bar (`NSStatusItem`) with a dropdown `NSMenu`.
+A lightweight macOS **menu bar** app showing real-time crypto prices via the Binance WebSocket + REST API. No main window — it lives entirely in the status bar (`NSStatusItem`) with a dropdown `NSMenu`. Defaults to BTC + ETH; users search and add/remove any Binance USDT spot pair via a popover (`AddCryptoPopover`).
 
 ## Build & test
 
@@ -37,10 +37,10 @@ Both `AppDelegate` and `WebSocketManager` are `@MainActor`. **All mutable state 
 
 ### Data flow
 
-1. At launch `WebSocketManager` REST-fetches prices for the **selected** symbols only, then opens a `@trade` WebSocket per selected symbol. Other currencies are fetched lazily the first time the menu opens (debounced, `menuFetchDebounce` = 10s).
+1. At launch `WebSocketManager` REST-fetches prices for the **selected** symbols only, then opens a `@trade` WebSocket per selected symbol. Adding a symbol from search REST-seeds its price and opens its socket; removing one closes the socket and drops its state. The search universe is the Binance `exchangeInfo` USDT/TRADING list, fetched once on first popover open (`loadTradableSymbolsIfNeeded`).
 2. Live trade messages update `prices`; `.priceUpdated` is posted **only while the menu is visible** (`isMenuVisible`) — when closed, the 1 Hz status-bar timer reads state directly, so per-trade notifications would be wasted work.
 3. Status bar title: rebuilt every 1s by a timer, but `button.title` is only assigned when the text actually changed.
-4. Menu rows: persistent `NSMenuItem`s keyed by symbol, refreshed **in place** (`refreshMenuItems`) — never rebuilt and never via reassigning `statusBarItem.menu`.
+4. Menu rows: one row per **selected** symbol, rebuilt on menu-open (`rebuildCurrencyRows`) for the current selection (which the popover mutates). While the menu is open, per-trade ticks refresh only the affected row **in place** (`refreshMenuItem`) via the `currencyMenuItems` map — never via reassigning `statusBarItem.menu`.
 
 ### Connection resilience
 
@@ -56,11 +56,14 @@ Side-effect-free decision/formatting code is factored out of the AppKit classes 
 - `BackoffPolicy` — reconnect delay calculation.
 - `PriceFormatter` — raw feed strings → display text (magnitude-dependent precision; reused immutable `NumberFormatter`s; unparseable input returns a placeholder rather than echoing untrusted feed strings).
 - `DisplayText` (`MenuRowText`, `StatusBarText`) — Foundation-only builders for the menu-row and status-bar strings, including the exact colour ranges.
+- `SymbolFormat` — symbol validation (`isValid`, the URL-injection guard) and display-code derivation (`displayCode`, e.g. `solusdt` → `SOL`).
+- `ExchangeInfo` — decodes Binance `exchangeInfo` into the tradable USDT/TRADING symbol list (the search universe).
+- `SymbolSearch` — local, ranked, case-insensitive filter over that list (Binance has no server-side symbol search).
 
 When adding behavior to networking or rendering, prefer extending these pure types and testing them, rather than putting logic inside the `@MainActor` classes.
 
 ## Conventions
 
-- **Symbol sanitization:** symbols loaded from `UserDefaults` are filtered through `CryptoCurrency.validSymbols` against the known list before being interpolated into request URLs — a tampered plist must not inject an arbitrary URL segment. Keep this when touching persistence or URL construction.
+- **Symbol sanitization:** the symbol is interpolated **unescaped** into the WebSocket URL path, so every symbol is validated by `SymbolFormat.isValid` (regex `^[a-z0-9]{2,20}usdt$`) before it can reach a URL — applied when loading `selectedSymbols` from `UserDefaults` and in `toggleCryptoSelection` before an add. A tampered plist or a searched symbol must not inject an arbitrary URL segment. Keep this when touching persistence or URL construction.
 - **Config lives in `AppConfiguration`** (API URLs, timing, fonts, UserDefaults keys, log subsystem). No magic numbers/strings scattered in the logic.
 - Code comments reference audit findings by ID (e.g. `F7`, `run3 F1`); these point at past fixes — don't regress the behavior they describe.
