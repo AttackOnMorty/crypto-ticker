@@ -38,6 +38,10 @@ enum ConnectionState {
     case error(WebSocketError)
 }
 
+enum ExchangeInfoLoadState: Equatable {
+    case idle, loading, loaded, failed
+}
+
 @MainActor
 class WebSocketManager {
     // All mutable state below is confined to the main actor. The only off-actor work is
@@ -51,6 +55,11 @@ class WebSocketManager {
     /// directly instead of round-tripping a formatted string — do not pre-format here.
     var priceChanges: [String: String] = [:]
     var connectionStates: [String: ConnectionState] = [:]
+
+    /// Cached `exchangeInfo` symbol universe for the search popover. Fetched on first
+    /// popover open, in-memory for the session.
+    var tradableSymbols: [TradableSymbol] = []
+    var exchangeInfoState: ExchangeInfoLoadState = .idle
 
     /// Set by the menu delegate. Live trade updates are only published while the menu is
     /// visible — when it's closed the 1 Hz status-bar timer is the only consumer and reads
@@ -95,6 +104,30 @@ class WebSocketManager {
             for symbol in symbols {
                 group.addTask { await self.fetchPrice(for: symbol) }
             }
+        }
+    }
+
+    /// Fetches the tradable USDT symbol list once. Re-fetches only if idle or a prior
+    /// attempt failed. Filtering to TRADING + USDT happens server- and client-side.
+    func loadTradableSymbolsIfNeeded() async {
+        guard exchangeInfoState == .idle || exchangeInfoState == .failed else { return }
+        exchangeInfoState = .loading
+        guard let url = URL(string: "\(AppConfiguration.API.binanceBaseURL)/exchangeInfo?symbolStatus=TRADING&showPermissionSets=false") else {
+            exchangeInfoState = .failed
+            return
+        }
+        do {
+            let (data, _) = try await urlSession.data(from: url)
+            let parsed = ExchangeInfo.parse(data)
+            guard !parsed.isEmpty else {
+                exchangeInfoState = .failed
+                return
+            }
+            tradableSymbols = parsed
+            exchangeInfoState = .loaded
+        } catch {
+            logger.error("Failed to load exchangeInfo: \(error.localizedDescription)")
+            exchangeInfoState = .failed
         }
     }
 
