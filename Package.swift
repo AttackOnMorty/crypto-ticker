@@ -30,6 +30,7 @@ let package = Package(
                 "WebSocketPlan.swift",
                 "CryptoCurrency.swift",
                 "Symbol.swift",
+                "ExchangeInfo.swift",
             ]
         ),
         .testTarget(
