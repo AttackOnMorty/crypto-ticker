@@ -31,6 +31,7 @@ let package = Package(
                 "CryptoCurrency.swift",
                 "Symbol.swift",
                 "ExchangeInfo.swift",
+                "SymbolSearch.swift",
             ]
         ),
         .testTarget(
