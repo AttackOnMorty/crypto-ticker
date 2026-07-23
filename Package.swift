@@ -31,6 +31,7 @@ let package = Package(
                 "Symbol.swift",
                 "ExchangeInfo.swift",
                 "SymbolSearch.swift",
+                "AddCryptoPopover.swift",
             ]
         ),
         .testTarget(

@@ -74,8 +74,7 @@ class WebSocketManager {
 
     init() {
         loadSelectedCryptos()
-        // F10: only the selected symbols are shown at launch; the others are fetched
-        // lazily when the menu first opens.
+        // Fetch prices and open sockets for the selected symbols.
         Task { @MainActor in
             await fetchPrices(for: selectedSymbols)
             connectWebSockets()

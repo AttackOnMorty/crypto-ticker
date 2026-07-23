@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var currencyMenuItems: [String: NSMenuItem] = [:]
     private var statusBarTimer: Timer?
     private var lastStatusTitle: String?
+    private var addCryptoPopover: NSPopover?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("Application launching...")
@@ -200,7 +201,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func statusBarButtonClicked() {}
 
     @objc private func openAddCryptoPopover() {
-        // Wired in Task 6.
+        // Let the menu finish closing before anchoring the popover to the status button.
+        DispatchQueue.main.async { [weak self] in self?.presentAddCryptoPopover() }
+    }
+
+    private func presentAddCryptoPopover() {
+        guard let button = statusBarItem.button else { return }
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = AddCryptoPopoverController(manager: webSocketManager) { [weak self] in
+            self?.updateStatusBarTitle()
+        }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        addCryptoPopover = popover
     }
 
     /// Live data changed. Only the open menu needs refreshing in place; when it's closed
