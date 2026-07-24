@@ -290,9 +290,10 @@ class WebSocketManager {
     func toggleCryptoSelection(_ symbol: String) {
         guard SymbolCatalog.supported.contains(symbol) else { return }
         if let index = selectedSymbols.firstIndex(of: symbol) {
+            // Keep the last known price: a deselected coin still has a menu row, it just
+            // stops updating live and drops off the status bar. Clearing it here would
+            // blank the row until the next debounced menu-open refetch.
             selectedSymbols.remove(at: index)
-            prices.removeValue(forKey: symbol)
-            priceChanges.removeValue(forKey: symbol)
         } else {
             selectedSymbols.append(symbol)
             Task { @MainActor in await fetchPrice(for: symbol) }
