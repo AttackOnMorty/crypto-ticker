@@ -103,6 +103,14 @@ final class NothingTextButton: NSControl {
             label.trailingAnchor.constraint(equalTo: trailingAnchor),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
+        // One stable tracking area follows the visible bounds automatically. Rebuilding
+        // every tracking area from `updateTrackingAreas()` creates an AppKit cursor-update
+        // loop and can consume an entire CPU core while the panel is open.
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self
+        ))
     }
 
     @available(*, unavailable)
@@ -112,16 +120,6 @@ final class NothingTextButton: NSControl {
         sendAction(action, to: target)
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self))
-    }
-
     override func mouseEntered(with event: NSEvent) { label.textColor = activeColor }
     override func mouseExited(with event: NSEvent) { label.textColor = restingColor }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .pointingHand)
-    }
 }
