@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A lightweight macOS **menu bar** app showing real-time crypto prices via the Binance WebSocket + REST API. No main window — it lives entirely in the status bar (`NSStatusItem`) with a dropdown `NSMenu`. Shows BTC and ETH; each can be toggled on/off in the menu to show or hide it in the menu bar. There is no search — the coin set is fixed.
+A lightweight macOS **menu bar** app showing real-time crypto prices via the Binance WebSocket + REST API. No main window — it lives entirely in the status bar (`NSStatusItem`) with a custom dropdown panel. Shows BTC and ETH; each can be switched on/off in the panel to show or hide it in the menu bar. There is no search — the coin set is fixed.
+
+The interface follows the **Nothing** design system: monochrome, typographically driven, colour only where it encodes data status. See `## Design system` below before changing anything visual.
 
 ## Build & test
 
@@ -18,7 +20,7 @@ There are two build paths and they are deliberately separate:
   swift test --filter WebSocketPlanTests/testReconnect  # one method
   ```
 
-`Package.swift` is a **test-only harness**, not a second product. It compiles the *same* source files the Xcode target uses (no duplicated code) by listing them explicitly in the `CryptoTickerCore` target's `sources:`. **When you add a new `.swift` file to the app, add it to that `sources:` list** or `swift test` won't see it. `CryptoTickerApp.swift` is excluded because its `@main` entry point is only valid in an executable target.
+`Package.swift` is a **test-only harness**, not a second product. It compiles the *same* source files the Xcode target uses (no duplicated code) by listing them explicitly in the `CryptoTickerCore` target's `sources:`. **When you add a new `.swift` file to the app, add it to that `sources:` list** or `swift test` won't see it. `CryptoTickerApp.swift` is excluded because its `@main` entry point is only valid in an executable target, and `Fonts/` because it is a resource directory, not source.
 
 ## Architecture
 
@@ -26,7 +28,8 @@ Entry point is `CryptoTickerApp.swift` (`@main`, SwiftUI `App` with an empty `Se
 
 Two cooperating layers:
 
-- **`AppDelegate`** — owns the `NSStatusItem` and `NSMenu`. Renders state to the UI; holds no market data of its own.
+- **`AppDelegate`** — owns the `NSStatusItem` and the panel controller. Renders state to the UI; holds no market data of its own. It does own one piece of *view* state, `focusedSymbol` (which coin sits in the panel's hero slot), deliberately not persisted.
+- **`TickerPanelController` / `TickerPanelView`** — the dropdown. A borderless `NSPanel`, not an `NSMenu` or `NSPopover`: both of those impose a system material, a shadow and a fixed row shape, and the design needs a flat surface with one hairline border and no shadow. The controller re-implements what `NSMenu` gave for free — positioning under the status item, dismissal on outside click and on Escape.
 - **`WebSocketManager`** — owns *all* market state (`prices`, `priceChanges`, `selectedSymbols`, `connectionStates`) and all networking. The single source of truth.
 
 They communicate via two `NotificationCenter` notifications: `.priceUpdated` and `.connectionStateChanged` (defined in `WebSocketManager.swift`).
@@ -37,10 +40,10 @@ Both `AppDelegate` and `WebSocketManager` are `@MainActor`. **All mutable state 
 
 ### Data flow
 
-1. At launch `WebSocketManager` REST-fetches prices for the **selected** symbols only, then opens a `@trade` WebSocket per selected symbol. Prices for all supported coins are refreshed (debounced) when the menu opens, so a hidden coin's row stays current even though it has no live socket.
-2. Live trade messages update `prices`; `.priceUpdated` is posted **only while the menu is visible** (`isMenuVisible`) — when closed, the 1 Hz status-bar timer reads state directly, so per-trade notifications would be wasted work.
-3. Status bar title: rebuilt every 1s by a timer, but `button.title` is only assigned when the text actually changed.
-4. Menu rows: one row per **supported** symbol, built once in `createMenu()` for the fixed list and refreshed in place thereafter (`refreshMenuItems`/`refreshMenuItem`) via the `currencyMenuItems` map — never rebuilt, never via reassigning `statusBarItem.menu`.
+1. At launch `WebSocketManager` REST-fetches prices for the **selected** symbols only, then opens a `@trade` WebSocket per selected symbol. Prices for all supported coins are refreshed (debounced) when the panel opens, so a hidden coin's row stays current even though it has no live socket.
+2. Live trade messages update `prices`; `.priceUpdated` is posted **only while the panel is visible** (`isPanelVisible`) — when closed, the 1 Hz status-bar timer reads state directly, so per-trade notifications would be wasted work.
+3. Status bar title: rebuilt every 1s by a timer, but `button.attributedTitle` is only assigned when the title actually changed. `StatusBarText.Title` is `Equatable` so a *colour-only* change (an item going stale at the same price) still counts as a change.
+4. Panel: every view is built once in `TickerPanelView.init` for the fixed symbol list and refreshed in place through `update(with:)` — never rebuilt. `AppDelegate` resolves a `PanelSnapshot` and hands it over; the view holds no market state, exactly as the menu it replaced did not.
 
 ### Connection resilience
 
@@ -55,13 +58,24 @@ Side-effect-free decision/formatting code is factored out of the AppKit classes 
 - `WebSocketPlan` — which sockets to open/close/reconnect (pure set math over selected vs. active symbols).
 - `BackoffPolicy` — reconnect delay calculation.
 - `PriceFormatter` — raw feed strings → display text (magnitude-dependent precision; reused immutable `NumberFormatter`s; unparseable input returns a placeholder rather than echoing untrusted feed strings).
-- `DisplayText` (`MenuRowText`, `StatusBarText`) — Foundation-only builders for the menu-row and status-bar strings, including the exact colour ranges.
+- `DisplayText` (`PanelText`, `StatusBarText`) — Foundation-only builders for the panel and status-bar strings. `StatusBarText.make` also returns the exact ranges to colour, computed by construction rather than by searching the finished string.
 - `SymbolCatalog` — the fixed supported-symbol list, whitelist validation (`validSymbols`, the URL-injection guard) and display-code derivation (`displayCode`, e.g. `btcusdt` → `BTC`).
 
 When adding behavior to networking or rendering, prefer extending these pure types and testing them, rather than putting logic inside the `@MainActor` classes.
 
+## Design system
+
+The Nothing system in one paragraph: three layers of importance per screen and no more; type carries hierarchy, not colour; spacing carries grouping, not dividers; monochrome canvas with status colour applied to the **value** only; exactly one pattern-break per screen. Anti-patterns to keep out: gradients, shadows, blur, filled or multi-colour icons, emoji as UI, spring easing, skeleton loaders, toasts.
+
+- **Tokens live in `NothingTheme`** — colour, type, spacing, metrics. No hex literal or point size belongs in view code. Dark and light are equal: every surface/text colour is a dynamic `NSColor`, so a view works in both without branching.
+- **`cgColor` freezes the appearance current at resolution time.** Any layer-backed view reading a dynamic colour must do it inside `effectiveAppearance.performAsCurrentDrawingAppearance { }` and re-resolve on `viewDidChangeEffectiveAppearance()`, or it stays stuck in whichever mode drew it first.
+- **The panel's one pattern-break is the hero number** in Doto, the dot-matrix face. Nothing else on the panel may compete with it; if something needs more emphasis, take it from the hero or move it.
+- **Three type sizes on the panel** (`TypeSize.hero` / `.value` / `.label`) and one on the menu bar. A fourth size is almost always a spacing problem — add distance instead.
+- **Fonts are bundled, not assumed.** `CryptoTicker/Fonts/*.ttf` (Doto, Space Grotesk, Space Mono — all OFL) are registered into the *process* on first font lookup by `NothingTheme.registration`; the app never installs fonts system-wide. Doto and Space Grotesk are variable faces whose named instances are not addressable by PostScript name, so `NothingTheme.resolve` goes through a family + weight `NSFontDescriptor` and verifies the family actually matched before returning — a missing face falls back to a system font rather than silently rendering the wrong one.
+- **Adding a font file?** Drop it in `CryptoTicker/Fonts/`; the Xcode target uses a filesystem-synchronized group, so it is bundled automatically.
+
 ## Conventions
 
 - **Symbol sanitization:** symbols loaded from `UserDefaults` are filtered through `SymbolCatalog.validSymbols` against the supported list before reaching request URLs — a tampered plist must not inject an arbitrary URL segment. Keep this when touching persistence or URL construction.
-- **Config lives in `AppConfiguration`** (API URLs, timing, fonts, UserDefaults keys, log subsystem). No magic numbers/strings scattered in the logic.
+- **Config lives in `AppConfiguration`** (API URLs, timing, UserDefaults keys, log subsystem); **design tokens live in `NothingTheme`**. No magic numbers/strings scattered in the logic.
 - Code comments reference audit findings by ID (e.g. `F7`, `run3 F1`); these point at past fixes — don't regress the behavior they describe.

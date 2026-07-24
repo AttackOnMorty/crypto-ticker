@@ -15,16 +15,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let webSocketManager = WebSocketManager()
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "AppDelegate")
 
-    /// Persistent menu items keyed by symbol, refreshed in place rather than rebuilt.
-    private var currencyMenuItems: [String: NSMenuItem] = [:]
+    private lazy var panelController = TickerPanelController(symbols: webSocketManager.availableSymbols)
     private var statusBarTimer: Timer?
-    private var lastStatusTitle: String?
-    private var lastMenuFetch: Date?
+    private var lastStatusTitle: StatusBarText.Title?
+    private var lastPanelFetch: Date?
+
+    /// The coin in the panel's display layer. The design gives exactly one element the
+    /// primary layer, so the user picks which — it is a view concern, not market state,
+    /// and deliberately not persisted.
+    private var focusedSymbol: String
+    /// When the data last changed, for the panel's footer.
+    private var lastDataChange = Date()
+
+    override init() {
+        focusedSymbol = SymbolCatalog.supported.first ?? ""
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("Application launching...")
         setupStatusBarItem()
-        setupMenu()
+        setupPanel()
         setupObservers()
         startPriceUpdates()
         logger.info("Application launched successfully")
@@ -44,17 +55,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        button.title = AppConfiguration.UI.loadingText
-        button.font = NSFont(name: AppConfiguration.UI.monospaceFont, size: AppConfiguration.UI.monospaceFontSize)
-
+        button.attributedTitle = attributedStatusTitle(StatusBarText.make(items: []))
         button.action = #selector(statusBarButtonClicked)
         button.target = self
 
         logger.info("Status bar item created")
     }
 
-    private func setupMenu() {
-        statusBarItem.menu = createMenu()
+    private func setupPanel() {
+        panelController.contentView.delegate = self
+        panelController.onOpen = { [weak self] in self?.panelWillOpen() }
+        panelController.onClose = { [weak self] in self?.webSocketManager.isPanelVisible = false }
     }
 
     private func setupObservers() {
@@ -73,89 +84,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    /// Builds one row per supported symbol, once — the list is fixed, so unlike the old
-    /// search-driven selection there is nothing to rebuild on menu open. Mutating menu
-    /// structure inside `menuWillOpen` would violate AppKit's documented contract.
-    private func createMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.delegate = self
-        for symbol in webSocketManager.availableSymbols {
-            let item = NSMenuItem(title: "", action: #selector(toggleCrypto(_:)), keyEquivalent: "")
-            item.representedObject = symbol
-            item.target = self
-            currencyMenuItems[symbol] = item
-            configureMenuItem(item, forSymbol: symbol)
-            menu.addItem(item)
-        }
-        menu.addItem(.separator())
-        menu.addItem(createQuitMenuItem())
-        return menu
-    }
-
-    /// Updates the persistent menu items' titles/state from current data, in place — no
-    /// menu rebuild and no reassigning `statusBarItem.menu` (F5/F6). Iterates every
-    /// supported symbol (not just selected) so a hidden coin's row stays current too.
-    private func refreshMenuItems() {
-        for symbol in webSocketManager.availableSymbols {
-            guard let item = currencyMenuItems[symbol] else { continue }
-            configureMenuItem(item, forSymbol: symbol)
-        }
-    }
-
-    /// Refreshes a single row in place (F5) — used for the per-trade price path, which names
-    /// the one symbol that changed instead of rebuilding all rows.
-    private func refreshMenuItem(for symbol: String) {
-        guard let item = currencyMenuItems[symbol] else { return }
-        configureMenuItem(item, forSymbol: symbol)
-    }
-
-    private func configureMenuItem(_ item: NSMenuItem, forSymbol symbol: String) {
-        let price = webSocketManager.prices[symbol] ?? AppConfiguration.UI.loadingText
-        let change = webSocketManager.priceChanges[symbol] ?? ""
-        let isConnected = webSocketManager.isConnected(for: symbol)
-        item.attributedTitle = attributedMenuTitle(forSymbol: symbol, price: price, change: change, isConnected: isConnected)
-        item.state = webSocketManager.selectedSymbols.contains(symbol) ? .on : .off
-    }
-
-    private func createQuitMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
-        item.target = self
-        return item
-    }
-
-    private func statusGlyph(isConnected: Bool) -> String {
-        isConnected ? "●" : "○"
-    }
-
-    /// Font and tab-stop layout are identical for every row and never change, so build them
-    /// once instead of on each per-trade refresh (F6). Only the per-row colours vary.
-    private static let menuBaseAttributes: [NSAttributedString.Key: Any] = {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.tabStops = AppConfiguration.UI.menuTabStops.map { NSTextTab(textAlignment: .left, location: $0, options: [:]) }
-        let font = NSFont(name: AppConfiguration.UI.monospaceFont, size: AppConfiguration.UI.monospaceFontSize)
-            ?? NSFont.monospacedSystemFont(ofSize: AppConfiguration.UI.monospaceFontSize, weight: .regular)
-        return [.font: font, .paragraphStyle: paragraphStyle]
-    }()
-
-    private func attributedMenuTitle(forSymbol symbol: String, price: String, change: String, isConnected: Bool) -> NSAttributedString {
-        let statusColor: NSColor = isConnected ? .systemGreen : .systemRed
-        let changeColor: NSColor = {
-            guard let value = PriceFormatter.percentValue(change) else { return .secondaryLabelColor }
-            return value >= 0 ? .systemGreen : .systemRed
-        }()
-
-        let row = MenuRowText.make(
-            glyph: statusGlyph(isConnected: isConnected),
-            code: SymbolCatalog.displayCode(for: symbol),
-            price: price,
-            change: PriceFormatter.percent(change)
-        )
-
-        let attributedString = NSMutableAttributedString(string: row.text, attributes: Self.menuBaseAttributes)
-        attributedString.addAttribute(.foregroundColor, value: statusColor, range: row.statusRange)
-        attributedString.addAttribute(.foregroundColor, value: changeColor, range: row.changeRange)
-        return attributedString
-    }
+    // MARK: - Status bar
 
     private func startPriceUpdates() {
         statusBarTimer = Timer.scheduledTimer(withTimeInterval: AppConfiguration.UI.statusBarUpdateInterval, repeats: true) { [weak self] _ in
@@ -168,72 +97,124 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateStatusBarTitle() {
         guard let button = statusBarItem.button else { return }
 
-        let displayText = createStatusBarDisplayText()
-        // F9: only touch the UI when the text actually changed.
-        guard displayText != lastStatusTitle else { return }
-        lastStatusTitle = displayText
-        button.title = displayText
+        let title = createStatusBarTitle()
+        // F9: only touch the UI when something actually changed. Colour is part of the
+        // title here, so the comparison covers the ranges too.
+        guard title != lastStatusTitle else { return }
+        lastStatusTitle = title
+        button.attributedTitle = attributedStatusTitle(title)
     }
 
-    private func createStatusBarDisplayText() -> String {
+    private func createStatusBarTitle() -> StatusBarText.Title {
         let items = webSocketManager.selectedSymbols.compactMap { symbol -> StatusBarText.Item? in
             guard let price = webSocketManager.prices[symbol] else { return nil }
             return StatusBarText.Item(
                 code: SymbolCatalog.displayCode(for: symbol),
                 price: price,
-                indicator: StatusBarText.indicator(for: webSocketManager.connectionStates[symbol])
+                isLive: webSocketManager.isConnected(for: symbol)
             )
         }
         return StatusBarText.make(items: items)
     }
 
-    @objc private func statusBarButtonClicked() {}
-
-    @objc private func toggleCrypto(_ sender: NSMenuItem) {
-        guard let symbol = sender.representedObject as? String else {
-            logger.error("Invalid symbol in menu item")
-            return
+    /// Two greys and no glyphs: the code recedes, the number reads, and an item with no
+    /// live socket dims out whole.
+    private func attributedStatusTitle(_ title: StatusBarText.Title) -> NSAttributedString {
+        let result = NSMutableAttributedString(
+            string: title.text,
+            attributes: [
+                .font: NothingTheme.data(size: NothingTheme.TypeSize.menuBar),
+                .foregroundColor: NothingTheme.Palette.textSecondary,
+            ]
+        )
+        for range in title.valueRanges {
+            result.addAttribute(.foregroundColor, value: NothingTheme.Palette.textDisplay, range: range)
         }
-        webSocketManager.toggleCryptoSelection(symbol)
-        refreshMenuItems()
+        for range in title.staleRanges {
+            result.addAttribute(.foregroundColor, value: NothingTheme.Palette.textDisabled, range: range)
+        }
+        return result
     }
 
-    /// Live data changed. Only the open menu needs refreshing in place; when it's closed
-    /// the 1 Hz status-bar timer already covers the visible UI, so we do nothing (F6).
-    /// A `.priceUpdated` notification names its symbol, so only that row is refreshed (F5);
-    /// `.connectionStateChanged` carries no symbol and refreshes all rows.
+    // MARK: - Panel
+
+    private func panelWillOpen() {
+        webSocketManager.isPanelVisible = true
+        refreshPanel()
+
+        let now = Date()
+        if let last = lastPanelFetch, now.timeIntervalSince(last) < AppConfiguration.UI.panelFetchDebounce { return }
+        lastPanelFetch = now
+        Task { @MainActor in
+            await webSocketManager.fetchAllPrices()
+            lastDataChange = Date()
+            refreshPanel()
+        }
+    }
+
+    private func refreshPanel() {
+        panelController.contentView.update(with: makeSnapshot())
+    }
+
+    private func makeSnapshot() -> PanelSnapshot {
+        let others = webSocketManager.availableSymbols.filter { $0 != focusedSymbol }
+        return PanelSnapshot(
+            hero: coin(for: focusedSymbol),
+            others: others.map(coin(for:)),
+            updated: "UPDATED \(Self.timeFormatter.string(from: lastDataChange))"
+        )
+    }
+
+    private func coin(for symbol: String) -> PanelSnapshot.Coin {
+        let isSelected = webSocketManager.selectedSymbols.contains(symbol)
+        return PanelSnapshot.Coin(
+            symbol: symbol,
+            pair: PanelText.pair(for: symbol),
+            price: webSocketManager.prices[symbol] ?? PriceFormatter.placeholder,
+            change: PanelText.change(fromRaw: webSocketManager.priceChanges[symbol] ?? ""),
+            status: PanelText.status(isSelected: isSelected, state: webSocketManager.connectionStates[symbol]),
+            isSelected: isSelected
+        )
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
+
+    // MARK: - Events
+
+    @objc private func statusBarButtonClicked() {
+        guard let button = statusBarItem.button else { return }
+        panelController.toggle(relativeTo: button)
+    }
+
+    /// Live data changed. Only the open panel needs refreshing; when it is closed the 1 Hz
+    /// status-bar timer already covers the visible UI, so we do nothing (F6).
     @objc private func dataDidChange(_ notification: Notification) {
-        guard webSocketManager.isMenuVisible else { return }
-        if let symbol = notification.object as? String {
-            refreshMenuItem(for: symbol)
-        } else {
-            refreshMenuItems()
-        }
+        lastDataChange = Date()
+        guard webSocketManager.isPanelVisible else { return }
+        refreshPanel()
+    }
+}
+
+extension AppDelegate: TickerPanelViewDelegate {
+    func panelView(_ view: TickerPanelView, didFocus symbol: String) {
+        guard symbol != focusedSymbol else { return }
+        focusedSymbol = symbol
+        refreshPanel()
     }
 
-    @objc private func quitApp() {
+    func panelView(_ view: TickerPanelView, didToggle symbol: String) {
+        webSocketManager.toggleCryptoSelection(symbol)
+        refreshPanel()
+    }
+
+    func panelViewDidRequestQuit(_ view: TickerPanelView) {
         logger.info("Quit requested")
         statusBarTimer?.invalidate()
         webSocketManager.disconnectWebSockets()
         NSApplication.shared.terminate(nil)
-    }
-}
-
-extension AppDelegate: NSMenuDelegate {
-    func menuWillOpen(_ menu: NSMenu) {
-        webSocketManager.isMenuVisible = true
-        refreshMenuItems()
-
-        let now = Date()
-        if let last = lastMenuFetch, now.timeIntervalSince(last) < AppConfiguration.UI.menuFetchDebounce { return }
-        lastMenuFetch = now
-        Task { @MainActor in
-            await webSocketManager.fetchAllPrices()
-            refreshMenuItems()
-        }
-    }
-
-    func menuDidClose(_ menu: NSMenu) {
-        webSocketManager.isMenuVisible = false
     }
 }

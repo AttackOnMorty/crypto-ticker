@@ -14,15 +14,11 @@ struct AppConfiguration {
     }
 
     struct UI {
-        static let appTitle = "CRYPTO TICKER"
-        static let loadingText = "Loading..."
+        /// Bracketed system text, not a spinner or a skeleton.
+        static let loadingText = "[LOADING]"
         static let statusBarUpdateInterval: TimeInterval = 1.0
-        static let monospaceFont = "Menlo"
-        static let monospaceFontSize: CGFloat = 12.0
-        /// Left tab-stop column positions for the aligned menu rows.
-        static let menuTabStops: [CGFloat] = [30, 110, 230]
-        /// Skip the price refetch if the menu reopened within this window.
-        static let menuFetchDebounce: TimeInterval = 10
+        /// Skip the price refetch if the panel reopened within this window.
+        static let panelFetchDebounce: TimeInterval = 10
     }
 
     struct WebSocket {

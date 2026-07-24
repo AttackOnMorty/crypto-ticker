@@ -20,13 +20,17 @@ let package = Package(
                 "Assets.xcassets",
                 "Preview Content",
                 "CryptoTicker.entitlements",
+                "Fonts",
             ],
             sources: [
                 "WebSocketManager.swift",
                 "AppConfiguration.swift",
                 "AppDelegate.swift",
                 "DisplayText.swift",
+                "NothingControls.swift",
+                "NothingTheme.swift",
                 "PriceFormatter.swift",
+                "TickerPanel.swift",
                 "WebSocketPlan.swift",
                 "Symbol.swift",
             ]

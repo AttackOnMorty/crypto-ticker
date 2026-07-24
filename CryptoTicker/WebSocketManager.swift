@@ -55,10 +55,11 @@ class WebSocketManager {
     /// The fixed set of coins the app supports (mirrors the old `availableCurrencies`).
     let availableSymbols = SymbolCatalog.supported
 
-    /// Set by the menu delegate. Live trade updates are only published while the menu is
-    /// visible — when it's closed the 1 Hz status-bar timer is the only consumer and reads
-    /// state directly, so a per-trade notification would be wasted work (F7).
-    var isMenuVisible = false
+    /// Set by the panel controller as it opens and closes. Live trade updates are only
+    /// published while the panel is visible — when it's closed the 1 Hz status-bar timer is
+    /// the only consumer and reads state directly, so a per-trade notification would be
+    /// wasted work (F7).
+    var isPanelVisible = false
 
     private var webSocketTasks: [String: URLSessionWebSocketTask] = [:]
     private var reconnectAttempts: [String: Int] = [:]
@@ -259,7 +260,7 @@ class WebSocketManager {
         }
 
         prices[symbol] = PriceFormatter.price(priceStr)
-        if isMenuVisible { // F7: only refresh the menu when it's actually on screen
+        if isPanelVisible { // F7: only refresh the panel when it is actually on screen
             // F5: name the changed symbol so the delegate refreshes just that one row.
             NotificationCenter.default.post(name: .priceUpdated, object: symbol)
         }
@@ -267,7 +268,7 @@ class WebSocketManager {
 
     private func updateConnectionState(for symbol: String, state: ConnectionState) {
         connectionStates[symbol] = state
-        if isMenuVisible { // F7: closed menu reads state via the 1 Hz status-bar timer instead
+        if isPanelVisible { // F7: closed panel reads state via the 1 Hz status-bar timer instead
             NotificationCenter.default.post(name: .connectionStateChanged, object: nil)
         }
     }
