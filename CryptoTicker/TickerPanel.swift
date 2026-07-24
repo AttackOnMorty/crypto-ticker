@@ -20,7 +20,6 @@ struct PanelSnapshot {
         let price: String
         let change: PanelText.Change
         let status: PanelText.Status
-        let isSelected: Bool
     }
 
     /// All supported coins are equal peers in one primary market board.
@@ -34,7 +33,6 @@ extension PanelText.Status {
         case .live: return NothingTheme.Palette.success
         case .sync: return NothingTheme.Palette.warning
         case .lost: return NothingTheme.Palette.accent
-        case .idle: return NothingTheme.Palette.textDisabled
         }
     }
 }
@@ -51,7 +49,6 @@ extension PanelText.Direction {
 
 @MainActor
 protocol TickerPanelViewDelegate: AnyObject {
-    func panelView(_ view: TickerPanelView, didToggle symbol: String)
     func panelViewDidRequestQuit(_ view: TickerPanelView)
 }
 
@@ -64,7 +61,6 @@ final class CoinSectionView: NSView {
     private let statusLabel: NothingLabel
     private let priceLabel: NothingLabel
     private let changeLabel: NothingLabel
-    let toggle = MechanicalSwitch()
 
     init(symbol: String) {
         pairLabel = NothingLabel(
@@ -88,21 +84,18 @@ final class CoinSectionView: NSView {
         )
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
-        toggle.identifier = NSUserInterfaceItemIdentifier(symbol)
 
-        for view in [pairLabel, statusLabel, toggle, priceLabel, changeLabel] {
+        for view in [pairLabel, statusLabel, priceLabel, changeLabel] {
             addSubview(view)
         }
         NSLayoutConstraint.activate([
             pairLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
-            pairLabel.centerYAnchor.constraint(equalTo: toggle.centerYAnchor),
-            toggle.topAnchor.constraint(equalTo: topAnchor),
-            toggle.trailingAnchor.constraint(equalTo: trailingAnchor),
-            statusLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -NothingTheme.Metric.sm),
-            statusLabel.centerYAnchor.constraint(equalTo: toggle.centerYAnchor),
+            pairLabel.topAnchor.constraint(equalTo: topAnchor),
+            statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            statusLabel.firstBaselineAnchor.constraint(equalTo: pairLabel.firstBaselineAnchor),
 
             priceLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
-            priceLabel.topAnchor.constraint(equalTo: toggle.bottomAnchor, constant: NothingTheme.Metric.md),
+            priceLabel.topAnchor.constraint(equalTo: pairLabel.bottomAnchor, constant: NothingTheme.Metric.md),
             priceLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
 
             changeLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -121,7 +114,6 @@ final class CoinSectionView: NSView {
         priceLabel.text = coin.price
         changeLabel.text = coin.change.text
         changeLabel.textColor = coin.change.direction.color
-        toggle.isOn = coin.isSelected
     }
 }
 
@@ -193,8 +185,6 @@ final class TickerPanelView: NSView {
             }
 
             let section = CoinSectionView(symbol: symbol)
-            section.toggle.target = self
-            section.toggle.action = #selector(switchToggled(_:))
             addFullWidth(section, to: stack)
             stack.setCustomSpacing(index == symbols.count - 1 ? Metric.xl : Metric.md, after: section)
             return section
@@ -204,12 +194,12 @@ final class TickerPanelView: NSView {
             text: "QUIT",
             font: NothingTheme.data(size: NothingTheme.TypeSize.label),
             color: NothingTheme.Palette.textSecondary,
-            activeColor: NothingTheme.Palette.accent,
+            activeColor: NothingTheme.Palette.textPrimary,
             tracking: NothingTheme.labelTracking
         )
         quit.target = self
         quit.action = #selector(quitClicked)
-        quit.heightAnchor.constraint(greaterThanOrEqualToConstant: Metric.controlTarget).isActive = true
+        quit.heightAnchor.constraint(greaterThanOrEqualToConstant: Metric.buttonTarget).isActive = true
         addFullWidth(makeRow(leading: updatedLabel, trailing: [quit]), to: stack)
     }
 
@@ -254,11 +244,6 @@ final class TickerPanelView: NSView {
     }
 
     // MARK: Actions
-
-    @objc private func switchToggled(_ sender: MechanicalSwitch) {
-        guard let symbol = sender.identifier?.rawValue else { return }
-        delegate?.panelView(self, didToggle: symbol)
-    }
 
     @objc private func quitClicked() {
         delegate?.panelViewDidRequestQuit(self)

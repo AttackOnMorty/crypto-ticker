@@ -45,7 +45,7 @@ class WebSocketManager {
 
     /// Formatted display strings (already through `PriceFormatter.price`).
     var prices: [String: String] = [:]
-    var selectedSymbols: [String] = []
+    var selectedSymbols: [String] = SymbolCatalog.supported
     /// RAW 24h change strings (e.g. "2.50"), formatted at display time. Stored raw on
     /// purpose so the colour decision (`PriceFormatter.percentValue`) parses the number
     /// directly instead of round-tripping a formatted string — do not pre-format here.
@@ -68,22 +68,12 @@ class WebSocketManager {
     private let logger = Logger(subsystem: AppConfiguration.Logging.subsystem, category: "WebSocketManager")
 
     init() {
-        loadSelectedCryptos()
-        // Fetch prices and open sockets for the selected symbols.
+        // Fetch prices and open one socket for every supported symbol.
         Task { @MainActor in
             await fetchPrices(for: selectedSymbols)
             connectWebSockets()
         }
         startPingTimer()
-    }
-
-    private func loadSelectedCryptos() {
-        let stored = UserDefaults.standard.array(forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos) as? [String] ?? AppConfiguration.Defaults.selectedCryptos
-        selectedSymbols = SymbolCatalog.validSymbols(from: stored)
-    }
-
-    private func saveSelectedCryptos() {
-        UserDefaults.standard.set(selectedSymbols, forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos)
     }
 
     func fetchPrices(for symbols: [String]) async {
@@ -286,21 +276,6 @@ class WebSocketManager {
         webSocketTasks.removeValue(forKey: symbol)
         reconnectAttempts.removeValue(forKey: symbol)
         updateConnectionState(for: symbol, state: .disconnected)
-    }
-
-    func toggleCryptoSelection(_ symbol: String) {
-        guard SymbolCatalog.supported.contains(symbol) else { return }
-        if let index = selectedSymbols.firstIndex(of: symbol) {
-            // Keep the last known price: a deselected coin still has a menu row, it just
-            // stops updating live and drops off the status bar. Clearing it here would
-            // blank the row until the next debounced menu-open refetch.
-            selectedSymbols.remove(at: index)
-        } else {
-            selectedSymbols.append(symbol)
-            Task { @MainActor in await fetchPrice(for: symbol) }
-        }
-        saveSelectedCryptos()
-        connectWebSockets()
     }
 
     func isConnected(for symbol: String) -> Bool {

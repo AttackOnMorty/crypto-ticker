@@ -20,17 +20,13 @@ enum PanelText {
     }
 
     /// Four-letter instrument states, all the same width so the header never reflows.
-    /// `idle` is a coin the user has switched off the menu bar: it has no socket, so
-    /// claiming it is "lost" would be a lie.
     enum Status: String {
         case live = "LIVE"
         case sync = "SYNC"
         case lost = "LOST"
-        case idle = "IDLE"
     }
 
-    static func status(isSelected: Bool, state: ConnectionState?) -> Status {
-        guard isSelected else { return .idle }
+    static func status(state: ConnectionState?) -> Status {
         switch state {
         case .connected: return .live
         case .connecting: return .sync
@@ -69,7 +65,9 @@ enum StatusBarText {
     struct Item {
         let code: String
         let price: String
-        let isLive: Bool
+        /// A price is stale only after a confirmed socket failure. Connecting and
+        /// not-yet-connected items remain readable while loading.
+        let isStale: Bool
     }
 
     /// `Equatable` so the caller can skip touching the status bar when nothing changed —
@@ -80,13 +78,13 @@ enum StatusBarText {
         let codeRanges: [NSRange]
         /// Prices of live items — display weight.
         let valueRanges: [NSRange]
-        /// Whole items that have no live socket, plus the empty-state text — dimmed.
+        /// Whole items whose sockets have genuinely failed — dimmed, never hidden.
         let staleRanges: [NSRange]
     }
 
     /// Wide enough that the eye groups each code with its own price. Spacing, not a
     /// divider, separates the pair.
-    private static let separator = "   "
+    private static let separator = "  "
 
     static func make(items: [Item]) -> Title {
         guard !items.isEmpty else {
@@ -95,7 +93,7 @@ enum StatusBarText {
                 text: text,
                 codeRanges: [],
                 valueRanges: [],
-                staleRanges: [NSRange(location: 0, length: (text as NSString).length)]
+                staleRanges: []
             )
         }
 
@@ -111,7 +109,7 @@ enum StatusBarText {
             text += "\(item.code) \(item.price)"
             let itemLength = (text as NSString).length - start
 
-            if item.isLive {
+            if !item.isStale {
                 codeRanges.append(NSRange(location: start, length: codeLength))
                 valueRanges.append(NSRange(location: start + codeLength + 1, length: itemLength - codeLength - 1))
             } else {

@@ -107,30 +107,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func createStatusBarTitle() -> StatusBarText.Title {
         let items = webSocketManager.selectedSymbols.compactMap { symbol -> StatusBarText.Item? in
             guard let price = webSocketManager.prices[symbol] else { return nil }
+            let isStale: Bool
+            switch webSocketManager.connectionStates[symbol] {
+            case .disconnected, .error: isStale = true
+            case .connecting, .connected, .none: isStale = false
+            }
             return StatusBarText.Item(
                 code: SymbolCatalog.displayCode(for: symbol),
                 price: price,
-                isLive: webSocketManager.isConnected(for: symbol)
+                isStale: isStale
             )
         }
         return StatusBarText.make(items: items)
     }
 
-    /// Two greys and no glyphs: the code recedes, the number reads, and an item with no
-    /// live socket dims out whole.
+    /// Values keep full display contrast while ticker labels use the same adaptive colour
+    /// at reduced opacity. This preserves legibility on the system selection blue without
+    /// using weight to distinguish a label from its value.
     private func attributedStatusTitle(_ title: StatusBarText.Title) -> NSAttributedString {
         let result = NSMutableAttributedString(
             string: title.text,
             attributes: [
                 .font: NothingTheme.data(size: NothingTheme.TypeSize.menuBar),
-                .foregroundColor: NothingTheme.Palette.textSecondary,
+                .foregroundColor: NothingTheme.Palette.textDisplay,
             ]
         )
-        for range in title.valueRanges {
-            result.addAttribute(.foregroundColor, value: NothingTheme.Palette.textDisplay, range: range)
+        for range in title.codeRanges {
+            result.addAttribute(
+                .foregroundColor,
+                value: NothingTheme.Palette.textDisplay.withAlphaComponent(0.68),
+                range: range
+            )
         }
         for range in title.staleRanges {
-            result.addAttribute(.foregroundColor, value: NothingTheme.Palette.textDisabled, range: range)
+            result.addAttribute(
+                .foregroundColor,
+                value: NothingTheme.Palette.textDisplay.withAlphaComponent(0.68),
+                range: range
+            )
         }
         return result
     }
@@ -163,14 +177,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func coin(for symbol: String) -> PanelSnapshot.Coin {
-        let isSelected = webSocketManager.selectedSymbols.contains(symbol)
         return PanelSnapshot.Coin(
             symbol: symbol,
             pair: PanelText.pair(for: symbol),
             price: webSocketManager.prices[symbol] ?? PriceFormatter.placeholder,
             change: PanelText.change(fromRaw: webSocketManager.priceChanges[symbol] ?? ""),
-            status: PanelText.status(isSelected: isSelected, state: webSocketManager.connectionStates[symbol]),
-            isSelected: isSelected
+            status: PanelText.status(state: webSocketManager.connectionStates[symbol])
         )
     }
 
@@ -197,11 +209,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate: TickerPanelViewDelegate {
-    func panelView(_ view: TickerPanelView, didToggle symbol: String) {
-        webSocketManager.toggleCryptoSelection(symbol)
-        refreshPanel()
-    }
-
     func panelViewDidRequestQuit(_ view: TickerPanelView) {
         logger.info("Quit requested")
         statusBarTimer?.invalidate()

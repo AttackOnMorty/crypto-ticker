@@ -15,23 +15,16 @@ final class PanelTextTests: XCTestCase {
 
     // MARK: status
 
-    func testSelectedSymbolReportsItsSocketState() {
-        XCTAssertEqual(PanelText.status(isSelected: true, state: .connected), .live)
-        XCTAssertEqual(PanelText.status(isSelected: true, state: .connecting), .sync)
-        XCTAssertEqual(PanelText.status(isSelected: true, state: .disconnected), .lost)
-        XCTAssertEqual(PanelText.status(isSelected: true, state: .error(.invalidURL)), .lost)
-        XCTAssertEqual(PanelText.status(isSelected: true, state: nil), .lost)
-    }
-
-    func testDeselectedSymbolIsIdleNotLost() {
-        // A coin switched off the menu bar has no socket by design — reporting it as a
-        // failure would be a lie.
-        XCTAssertEqual(PanelText.status(isSelected: false, state: nil), .idle)
-        XCTAssertEqual(PanelText.status(isSelected: false, state: .connected), .idle)
+    func testSymbolReportsItsSocketState() {
+        XCTAssertEqual(PanelText.status(state: .connected), .live)
+        XCTAssertEqual(PanelText.status(state: .connecting), .sync)
+        XCTAssertEqual(PanelText.status(state: .disconnected), .lost)
+        XCTAssertEqual(PanelText.status(state: .error(.invalidURL)), .lost)
+        XCTAssertEqual(PanelText.status(state: nil), .lost)
     }
 
     func testStatusLabelsAreTheSameWidthSoTheHeaderNeverReflows() {
-        let widths = Set([PanelText.Status.live, .sync, .lost, .idle].map(\.rawValue.count))
+        let widths = Set([PanelText.Status.live, .sync, .lost].map(\.rawValue.count))
         XCTAssertEqual(widths, [4])
     }
 

@@ -122,9 +122,7 @@ enum NothingTheme {
         static let hairline: CGFloat = 1
         /// Gap between the status-bar button and the top of the panel.
         static let panelOffset: CGFloat = 6
-        /// The visible switch sits inside a 44pt interaction target.
-        static let switchSize = NSSize(width: 40, height: 22)
-        static let controlTarget: CGFloat = 44
+        static let buttonTarget: CGFloat = 44
         /// Transitions are percussive — a short ease-out, never a spring.
         static let transition: TimeInterval = 0.15
     }
