@@ -38,10 +38,6 @@ enum ConnectionState {
     case error(WebSocketError)
 }
 
-enum ExchangeInfoLoadState: Equatable {
-    case idle, loading, loaded, failed
-}
-
 @MainActor
 class WebSocketManager {
     // All mutable state below is confined to the main actor. The only off-actor work is
@@ -56,10 +52,8 @@ class WebSocketManager {
     var priceChanges: [String: String] = [:]
     var connectionStates: [String: ConnectionState] = [:]
 
-    /// Cached `exchangeInfo` symbol universe for the search popover. Fetched on first
-    /// popover open, in-memory for the session.
-    var tradableSymbols: [TradableSymbol] = []
-    var exchangeInfoState: ExchangeInfoLoadState = .idle
+    /// The fixed set of coins the app supports (mirrors the old `availableCurrencies`).
+    let availableSymbols = SymbolCatalog.supported
 
     /// Set by the menu delegate. Live trade updates are only published while the menu is
     /// visible — when it's closed the 1 Hz status-bar timer is the only consumer and reads
@@ -84,7 +78,7 @@ class WebSocketManager {
 
     private func loadSelectedCryptos() {
         let stored = UserDefaults.standard.array(forKey: AppConfiguration.UserDefaultsKeys.selectedCryptos) as? [String] ?? AppConfiguration.Defaults.selectedCryptos
-        selectedSymbols = stored.filter { SymbolFormat.isValid($0) }
+        selectedSymbols = SymbolCatalog.validSymbols(from: stored)
     }
 
     private func saveSelectedCryptos() {
@@ -100,28 +94,10 @@ class WebSocketManager {
         }
     }
 
-    /// Fetches the tradable USDT symbol list once. Re-fetches only if idle or a prior
-    /// attempt failed. Filtering to TRADING + USDT happens server- and client-side.
-    func loadTradableSymbolsIfNeeded() async {
-        guard exchangeInfoState == .idle || exchangeInfoState == .failed else { return }
-        exchangeInfoState = .loading
-        guard let url = URL(string: "\(AppConfiguration.API.binanceBaseURL)/exchangeInfo?symbolStatus=TRADING&showPermissionSets=false") else {
-            exchangeInfoState = .failed
-            return
-        }
-        do {
-            let (data, _) = try await urlSession.data(from: url)
-            let parsed = ExchangeInfo.parse(data)
-            guard !parsed.isEmpty else {
-                exchangeInfoState = .failed
-                return
-            }
-            tradableSymbols = parsed
-            exchangeInfoState = .loaded
-        } catch {
-            logger.error("Failed to load exchangeInfo: \(error.localizedDescription)")
-            exchangeInfoState = .failed
-        }
+    /// Refreshes prices for every supported coin, not just the selected ones, so a
+    /// hidden coin's menu row (which has no live socket) still shows a current price.
+    func fetchAllPrices() async {
+        await fetchPrices(for: availableSymbols)
     }
 
     private func fetchPrice(for symbol: String) async {
@@ -312,7 +288,7 @@ class WebSocketManager {
     }
 
     func toggleCryptoSelection(_ symbol: String) {
-        guard SymbolFormat.isValid(symbol) else { return }
+        guard SymbolCatalog.supported.contains(symbol) else { return }
         if let index = selectedSymbols.firstIndex(of: symbol) {
             selectedSymbols.remove(at: index)
             prices.removeValue(forKey: symbol)

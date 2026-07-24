@@ -29,9 +29,6 @@ let package = Package(
                 "PriceFormatter.swift",
                 "WebSocketPlan.swift",
                 "Symbol.swift",
-                "ExchangeInfo.swift",
-                "SymbolSearch.swift",
-                "AddCryptoPopover.swift",
             ]
         ),
         .testTarget(

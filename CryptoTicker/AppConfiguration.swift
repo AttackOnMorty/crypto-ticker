@@ -21,6 +21,8 @@ struct AppConfiguration {
         static let monospaceFontSize: CGFloat = 12.0
         /// Left tab-stop column positions for the aligned menu rows.
         static let menuTabStops: [CGFloat] = [30, 110, 230]
+        /// Skip the price refetch if the menu reopened within this window.
+        static let menuFetchDebounce: TimeInterval = 10
     }
 
     struct WebSocket {

@@ -5,21 +5,22 @@
 
 import Foundation
 
-/// A Binance spot symbol tradable against USDT, as surfaced by `exchangeInfo`.
-struct TradableSymbol: Equatable {
-    let symbol: String     // lowercase stream form, e.g. "solusdt"
-    let baseAsset: String  // e.g. "SOL"
-}
+/// The fixed set of coins the app supports, and the helpers for validating and
+/// displaying them. Membership in `supported` is the security guard: symbols are
+/// interpolated unescaped into the WebSocket URL path, so a tampered plist must not
+/// be able to inject an arbitrary segment.
+enum SymbolCatalog {
+    static let supported = ["btcusdt", "ethusdt"]
 
-/// Symbol validation and display. `isValid` is the security boundary: the symbol is
-/// interpolated unescaped into the WebSocket URL path, so this regex (not a whitelist)
-/// is what blocks URL injection.
-enum SymbolFormat {
-    static func isValid(_ symbol: String) -> Bool {
-        symbol.range(of: "^[a-z0-9]{2,20}usdt$", options: .regularExpression) != nil
+    /// Keeps only supported symbols, preserving order and dropping duplicates.
+    /// Duplicates matter: two menu rows would share one `currencyMenuItems` entry,
+    /// leaving one row permanently stale.
+    static func validSymbols(from raw: [String]) -> [String] {
+        var seen = Set<String>()
+        return raw.filter { supported.contains($0) && seen.insert($0).inserted }
     }
 
-    /// "solusdt" -> "SOL". Strips the trailing "usdt" quote and uppercases the base.
+    /// "btcusdt" -> "BTC". Strips the trailing "usdt" quote and uppercases the base.
     static func displayCode(for symbol: String) -> String {
         let base = symbol.hasSuffix("usdt") ? String(symbol.dropLast(4)) : symbol
         return base.uppercased()
