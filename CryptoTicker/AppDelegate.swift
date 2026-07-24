@@ -58,6 +58,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         button.attributedTitle = attributedStatusTitle(StatusBarText.make(items: []))
         button.action = #selector(statusBarButtonClicked)
         button.target = self
+        // Act on press, the way a menu does. On mouse *up* the app's first click while it
+        // is inactive is swallowed by activation, so the panel would need two clicks to
+        // open — which is what `NSStatusItem.menu` used to hide from us.
+        button.sendAction(on: [.leftMouseDown])
 
         logger.info("Status bar item created")
     }

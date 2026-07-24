@@ -438,7 +438,10 @@ final class TickerPanel: NSPanel {
         isOpaque = false
         hasShadow = false
         isMovableByWindowBackground = false
-        hidesOnDeactivate = true
+        // Clicking the menu bar deactivates the app, so `hidesOnDeactivate` would close
+        // the panel a moment before the status item's action reopened it — the panel could
+        // then never be toggled shut. Dismissal is the monitors' job instead.
+        hidesOnDeactivate = false
         animationBehavior = .none
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
@@ -461,9 +464,10 @@ final class TickerPanelController {
 
     private let panel: TickerPanel
     private var monitors: [Any] = []
-    /// The status item's own window. Clicks in it are left alone so the button's own
-    /// action decides — dismissing here would close the panel and let the click reopen it.
-    private weak var anchorWindow: NSWindow?
+    /// The status item the panel hangs from. Clicks inside it are left alone so the
+    /// button's own action decides — dismissing here would close the panel and let the
+    /// same click reopen it.
+    private weak var anchorButton: NSStatusBarButton?
 
     init(symbols: [String]) {
         contentView = TickerPanelView(symbols: symbols)
@@ -482,7 +486,7 @@ final class TickerPanelController {
         let size = contentView.fittingSize
         panel.setContentSize(size)
         position(size: size, under: button)
-        anchorWindow = button.window
+        anchorButton = button
         panel.orderFrontRegardless()
         panel.makeKey()
         installMonitors()
@@ -508,8 +512,16 @@ final class TickerPanelController {
 
     private func installMonitors() {
         let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
+        // A click on our own status item is delivered to *both* monitors — macOS owns the
+        // menu bar, so the event system treats the click as having gone to another
+        // application while AppKit still routes it through this process. Either monitor
+        // dismissing on it would close the panel a moment before the button's action
+        // reopened it, and the panel could never be toggled shut. Both must let it past.
         if let global = NSEvent.addGlobalMonitorForEvents(matching: clicks, handler: { [weak self] _ in
-            Task { @MainActor in self?.hide() }
+            Task { @MainActor in
+                guard let self, !self.clickIsOnAnchor() else { return }
+                self.hide()
+            }
         }) {
             monitors.append(global)
         }
@@ -523,13 +535,20 @@ final class TickerPanelController {
                 }
                 return event
             }
-            if event.window !== self.panel && event.window !== self.anchorWindow {
+            if event.window !== self.panel && event.window !== self.anchorButton?.window {
                 self.hide()
             }
             return event
         }) {
             monitors.append(local)
         }
+    }
+
+    /// Whether the pointer is over the status item. A global event carries no window to
+    /// compare against, so the anchor has to be recognised geometrically there.
+    private func clickIsOnAnchor() -> Bool {
+        guard let button = anchorButton, let window = button.window else { return false }
+        return window.convertToScreen(button.convert(button.bounds, to: nil)).contains(NSEvent.mouseLocation)
     }
 
     private func removeMonitors() {
