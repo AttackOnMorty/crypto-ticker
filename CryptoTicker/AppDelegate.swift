@@ -51,6 +51,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         button.attributedTitle = attributedStatusTitle(StatusBarText.make(items: []))
+        // A two-state status button retains AppKit's native illuminated pill while the
+        // custom panel is open. A momentary button clears its highlight on mouse-up.
+        button.setButtonType(.pushOnPushOff)
+        button.state = .off
         button.action = #selector(statusBarButtonClicked)
         button.target = self
         // Act on press, the way a menu does. On mouse *up* the app's first click while it

@@ -318,10 +318,9 @@ final class TickerPanelController {
         panel.setContentSize(size)
         position(size: size, under: button)
         anchorButton = button
-        // A custom NSPanel does not retain the status button's pressed state the way
-        // MenuBarExtra(.window) does. Keep AppKit's native rounded highlight visible for
-        // exactly as long as the panel is open.
-        button.highlight(true)
+        // `pushOnPushOff` makes this a persistent native illuminated state rather than
+        // the transient mouse-down highlight used by a momentary status button.
+        button.state = .on
         panel.orderFrontRegardless()
         panel.makeKey()
         installMonitors()
@@ -331,7 +330,7 @@ final class TickerPanelController {
         guard panel.isVisible else { return }
         removeMonitors()
         panel.orderOut(nil)
-        anchorButton?.highlight(false)
+        anchorButton?.state = .off
         onClose?()
     }
 
