@@ -52,12 +52,13 @@ enum NothingTheme {
         static let data = "Space Mono"
     }
 
-    /// Exactly three sizes on the panel — hero, value, label — and one on the menu bar.
+    /// Exactly three token sizes on the panel — display-lg, body, label — and the
+    /// platform-owned menu-bar size.
     /// Anything that wants a fourth is a spacing problem, not a type problem.
     enum TypeSize {
-        static let hero: CGFloat = 42
-        static let value: CGFloat = 15
-        static let label: CGFloat = 10
+        static let hero: CGFloat = 48
+        static let value: CGFloat = 16
+        static let label: CGFloat = 11
         static let menuBar: CGFloat = 12
     }
 
@@ -121,8 +122,9 @@ enum NothingTheme {
         static let hairline: CGFloat = 1
         /// Gap between the status-bar button and the top of the panel.
         static let panelOffset: CGFloat = 6
-        static let statusDotSize: CGFloat = 6
-        static let switchSize = NSSize(width: 34, height: 18)
+        /// The visible switch sits inside a 44pt interaction target.
+        static let switchSize = NSSize(width: 40, height: 22)
+        static let controlTarget: CGFloat = 44
         /// Transitions are percussive — a short ease-out, never a spring.
         static let transition: TimeInterval = 0.15
     }

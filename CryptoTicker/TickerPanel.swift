@@ -23,10 +23,8 @@ struct PanelSnapshot {
         let isSelected: Bool
     }
 
-    /// The one coin in the display layer. Which coin that is, is the user's choice.
-    let hero: Coin
-    /// The remaining coins, in the supporting layer.
-    let others: [Coin]
+    /// All supported coins are equal peers in one primary market board.
+    let coins: [Coin]
     let updated: String
 }
 
@@ -53,51 +51,63 @@ extension PanelText.Direction {
 
 @MainActor
 protocol TickerPanelViewDelegate: AnyObject {
-    func panelView(_ view: TickerPanelView, didFocus symbol: String)
     func panelView(_ view: TickerPanelView, didToggle symbol: String)
     func panelViewDidRequestQuit(_ view: TickerPanelView)
 }
 
-// MARK: - Stat row
+// MARK: - Coin section
 
-/// A coin in the supporting layer. Clicking it promotes it to the hero slot — the row
-/// brightens under the cursor to say so, which is the only affordance the design allows.
-final class StatRowView: NSControl {
-    private let codeLabel: NothingLabel
+/// One equal peer in the market board. Every coin receives the same type, spacing,
+/// status treatment and menu-bar control; only the data changes.
+final class CoinSectionView: NSView {
+    private let pairLabel: NothingLabel
+    private let statusLabel: NothingLabel
     private let priceLabel: NothingLabel
     private let changeLabel: NothingLabel
-    private var isHovered = false
+    let toggle = MechanicalSwitch()
 
-    private(set) var symbol = ""
-
-    override init(frame frameRect: NSRect) {
-        codeLabel = NothingLabel(
+    init(symbol: String) {
+        pairLabel = NothingLabel(
             font: NothingTheme.data(size: NothingTheme.TypeSize.label),
             color: NothingTheme.Palette.textSecondary,
             tracking: NothingTheme.labelTracking
         )
-        priceLabel = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.value),
-            color: NothingTheme.Palette.textPrimary,
-            alignment: .right
-        )
-        changeLabel = NothingLabel(
+        statusLabel = NothingLabel(
             font: NothingTheme.data(size: NothingTheme.TypeSize.label),
             color: NothingTheme.Palette.textDisabled,
+            tracking: NothingTheme.labelTracking,
             alignment: .right
         )
-        super.init(frame: frameRect)
+        priceLabel = NothingLabel(
+            font: NothingTheme.display(size: NothingTheme.TypeSize.hero),
+            color: NothingTheme.Palette.textDisplay
+        )
+        changeLabel = NothingLabel(
+            font: NothingTheme.data(size: NothingTheme.TypeSize.value),
+            color: NothingTheme.Palette.textDisabled
+        )
+        super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
+        toggle.identifier = NSUserInterfaceItemIdentifier(symbol)
 
-        for view in [codeLabel, priceLabel, changeLabel] { addSubview(view) }
+        for view in [pairLabel, statusLabel, toggle, priceLabel, changeLabel] {
+            addSubview(view)
+        }
         NSLayoutConstraint.activate([
-            topAnchor.constraint(equalTo: priceLabel.topAnchor, constant: -NothingTheme.Metric.sm),
-            priceLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            changeLabel.topAnchor.constraint(equalTo: priceLabel.bottomAnchor, constant: 2),
-            changeLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            bottomAnchor.constraint(equalTo: changeLabel.bottomAnchor, constant: NothingTheme.Metric.sm),
-            codeLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
-            codeLabel.firstBaselineAnchor.constraint(equalTo: priceLabel.firstBaselineAnchor),
+            pairLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            pairLabel.centerYAnchor.constraint(equalTo: toggle.centerYAnchor),
+            toggle.topAnchor.constraint(equalTo: topAnchor),
+            toggle.trailingAnchor.constraint(equalTo: trailingAnchor),
+            statusLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -NothingTheme.Metric.sm),
+            statusLabel.centerYAnchor.constraint(equalTo: toggle.centerYAnchor),
+
+            priceLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            priceLabel.topAnchor.constraint(equalTo: toggle.bottomAnchor, constant: NothingTheme.Metric.md),
+            priceLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+
+            changeLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            changeLabel.topAnchor.constraint(equalTo: priceLabel.bottomAnchor, constant: NothingTheme.Metric.xs),
+            changeLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }
 
@@ -105,80 +115,13 @@ final class StatRowView: NSControl {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func update(with coin: PanelSnapshot.Coin) {
-        symbol = coin.symbol
-        codeLabel.text = coin.pair
+        pairLabel.text = coin.pair
+        statusLabel.text = "[\(coin.status.rawValue)]"
+        statusLabel.textColor = coin.status.color
         priceLabel.text = coin.price
         changeLabel.text = coin.change.text
         changeLabel.textColor = coin.change.direction.color
-        applyHoverColors()
-    }
-
-    private func applyHoverColors() {
-        codeLabel.textColor = isHovered ? NothingTheme.Palette.textPrimary : NothingTheme.Palette.textSecondary
-        priceLabel.textColor = isHovered ? NothingTheme.Palette.textDisplay : NothingTheme.Palette.textPrimary
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        sendAction(action, to: target)
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self))
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovered = true
-        applyHoverColors()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovered = false
-        applyHoverColors()
-    }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .pointingHand)
-    }
-}
-
-// MARK: - Status dot
-
-/// The single dot that reports the hero's connection. The one moment of colour in the
-/// header, and the only thing on the panel allowed to turn red on its own.
-final class StatusDot: NSView {
-    init() {
-        super.init(frame: .zero)
-        wantsLayer = true
-        translatesAutoresizingMaskIntoConstraints = false
-        let size = NothingTheme.Metric.statusDotSize
-        layer?.cornerRadius = size / 2
-        NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: size),
-            heightAnchor.constraint(equalToConstant: size),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    var color: NSColor = NothingTheme.Palette.textDisabled {
-        didSet { needsDisplay = true }
-    }
-
-    override var wantsUpdateLayer: Bool { true }
-
-    override func updateLayer() {
-        // `cgColor` snapshots whatever appearance is current, so resolve it against this
-        // view's own — otherwise a dynamic colour freezes at the mode it was first drawn in.
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = color.cgColor
-        }
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        needsDisplay = true
+        toggle.isOn = coin.isSelected
     }
 }
 
@@ -189,29 +132,13 @@ final class TickerPanelView: NSView {
 
     weak var delegate: TickerPanelViewDelegate?
 
-    private let headerPair: NothingLabel
-    private let headerStatus: NothingLabel
-    private let statusDot = StatusDot()
-    private let heroPrice: NothingLabel
-    private let heroChange: NothingLabel
     private let updatedLabel: NothingLabel
-    private var statRows: [StatRowView] = []
-    private var switches: [String: MechanicalSwitch] = [:]
+    private var coinSections: [CoinSectionView] = []
 
     /// - Parameter symbols: every supported coin, in a fixed order. The switch row and the
     ///   stat rows are sized from this once — the panel is never rebuilt, only refreshed.
     init(symbols: [String]) {
         let labelFont = NothingTheme.data(size: NothingTheme.TypeSize.label)
-        headerPair = NothingLabel(font: labelFont, color: NothingTheme.Palette.textSecondary, tracking: NothingTheme.labelTracking)
-        headerStatus = NothingLabel(font: labelFont, color: NothingTheme.Palette.textDisabled, tracking: NothingTheme.labelTracking, alignment: .right)
-        heroPrice = NothingLabel(
-            font: NothingTheme.display(size: NothingTheme.TypeSize.hero),
-            color: NothingTheme.Palette.textDisplay
-        )
-        heroChange = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.value),
-            color: NothingTheme.Palette.textDisabled
-        )
         updatedLabel = NothingLabel(font: labelFont, color: NothingTheme.Palette.textDisabled, tracking: NothingTheme.labelTracking)
 
         super.init(frame: .zero)
@@ -258,63 +185,20 @@ final class TickerPanelView: NSView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Metric.padding),
         ])
 
-        // Tertiary: what this is, and whether the feed is alive.
-        let header = makeRow(leading: headerPair, trailing: [statusDot, headerStatus])
-        addFullWidth(header, to: stack)
-        stack.setCustomSpacing(Metric.lg, after: header)
+        coinSections = symbols.enumerated().map { index, symbol in
+            if index > 0 {
+                let hairline = HairlineView()
+                addFullWidth(hairline, to: stack)
+                stack.setCustomSpacing(Metric.md, after: hairline)
+            }
 
-        // Primary: the one number the app exists to show.
-        addFullWidth(heroPrice, to: stack)
-        stack.setCustomSpacing(Metric.xs, after: heroPrice)
-        addFullWidth(heroChange, to: stack)
-        stack.setCustomSpacing(Metric.xl, after: heroChange)
-
-        // The only rule on the panel: the rows below it are structurally identical, which
-        // is the one case where spacing alone leaves the grouping ambiguous.
-        let hairline = HairlineView()
-        addFullWidth(hairline, to: stack)
-        stack.setCustomSpacing(Metric.sm, after: hairline)
-
-        statRows = (1..<max(symbols.count, 1)).map { _ in
-            let row = StatRowView(frame: .zero)
-            row.target = self
-            row.action = #selector(statRowClicked(_:))
-            addFullWidth(row, to: stack)
-            return row
+            let section = CoinSectionView(symbol: symbol)
+            section.toggle.target = self
+            section.toggle.action = #selector(switchToggled(_:))
+            addFullWidth(section, to: stack)
+            stack.setCustomSpacing(index == symbols.count - 1 ? Metric.xl : Metric.md, after: section)
+            return section
         }
-        if let last = statRows.last {
-            stack.setCustomSpacing(Metric.xl, after: last)
-        } else {
-            stack.setCustomSpacing(Metric.xl, after: hairline)
-        }
-
-        let menuBarLabel = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textDisabled,
-            tracking: NothingTheme.labelTracking
-        )
-        menuBarLabel.text = "MENU BAR"
-        addFullWidth(menuBarLabel, to: stack)
-        stack.setCustomSpacing(Metric.sm, after: menuBarLabel)
-
-        // Laid out by hand rather than with a horizontal `NSStackView`: the stack fills the
-        // panel width and pushes the switches to opposite edges, and they read as one
-        // control cluster only while they stay together.
-        let switchRow = NSView()
-        switchRow.translatesAutoresizingMaskIntoConstraints = false
-        var leadingEdge = switchRow.leadingAnchor
-        for (index, symbol) in symbols.enumerated() {
-            let group = makeSwitchGroup(for: symbol)
-            switchRow.addSubview(group)
-            NSLayoutConstraint.activate([
-                group.leadingAnchor.constraint(equalTo: leadingEdge, constant: index == 0 ? 0 : Metric.lg),
-                group.topAnchor.constraint(equalTo: switchRow.topAnchor),
-                group.bottomAnchor.constraint(equalTo: switchRow.bottomAnchor),
-            ])
-            leadingEdge = group.trailingAnchor
-        }
-        addFullWidth(switchRow, to: stack)
-        stack.setCustomSpacing(Metric.xl, after: switchRow)
 
         let quit = NothingTextButton(
             text: "QUIT",
@@ -325,28 +209,8 @@ final class TickerPanelView: NSView {
         )
         quit.target = self
         quit.action = #selector(quitClicked)
+        quit.heightAnchor.constraint(greaterThanOrEqualToConstant: Metric.controlTarget).isActive = true
         addFullWidth(makeRow(leading: updatedLabel, trailing: [quit]), to: stack)
-    }
-
-    private func makeSwitchGroup(for symbol: String) -> NSView {
-        let code = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textSecondary,
-            tracking: NothingTheme.labelTracking
-        )
-        code.text = SymbolCatalog.displayCode(for: symbol)
-
-        let toggle = MechanicalSwitch()
-        toggle.identifier = NSUserInterfaceItemIdentifier(symbol)
-        toggle.target = self
-        toggle.action = #selector(switchToggled(_:))
-        switches[symbol] = toggle
-
-        let group = NSStackView(views: [code, toggle])
-        group.orientation = .horizontal
-        group.alignment = .centerY
-        group.spacing = NothingTheme.Metric.sm
-        return group
     }
 
     private func addFullWidth(_ view: NSView, to stack: NSStackView) {
@@ -382,32 +246,14 @@ final class TickerPanelView: NSView {
     // MARK: Refresh
 
     func update(with snapshot: PanelSnapshot) {
-        headerPair.text = snapshot.hero.pair
-        headerStatus.text = snapshot.hero.status.rawValue
-        headerStatus.textColor = snapshot.hero.status.color
-        statusDot.color = snapshot.hero.status.color
-        statusDot.needsDisplay = true
-
-        heroPrice.text = snapshot.hero.price
-        heroChange.text = snapshot.hero.change.text
-        heroChange.textColor = snapshot.hero.change.direction.color
-
-        for (row, coin) in zip(statRows, snapshot.others) {
-            row.update(with: coin)
-        }
-
-        for coin in [snapshot.hero] + snapshot.others {
-            switches[coin.symbol]?.isOn = coin.isSelected
+        for (section, coin) in zip(coinSections, snapshot.coins) {
+            section.update(with: coin)
         }
 
         updatedLabel.text = snapshot.updated
     }
 
     // MARK: Actions
-
-    @objc private func statRowClicked(_ sender: StatRowView) {
-        delegate?.panelView(self, didFocus: sender.symbol)
-    }
 
     @objc private func switchToggled(_ sender: MechanicalSwitch) {
         guard let symbol = sender.identifier?.rawValue else { return }

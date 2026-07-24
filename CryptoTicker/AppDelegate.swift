@@ -20,15 +20,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastStatusTitle: StatusBarText.Title?
     private var lastPanelFetch: Date?
 
-    /// The coin in the panel's display layer. The design gives exactly one element the
-    /// primary layer, so the user picks which — it is a view concern, not market state,
-    /// and deliberately not persisted.
-    private var focusedSymbol: String
     /// When the data last changed, for the panel's footer.
     private var lastDataChange = Date()
 
     override init() {
-        focusedSymbol = SymbolCatalog.supported.first ?? ""
         super.init()
     }
 
@@ -161,10 +156,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeSnapshot() -> PanelSnapshot {
-        let others = webSocketManager.availableSymbols.filter { $0 != focusedSymbol }
         return PanelSnapshot(
-            hero: coin(for: focusedSymbol),
-            others: others.map(coin(for:)),
+            coins: webSocketManager.availableSymbols.map(coin(for:)),
             updated: "UPDATED \(Self.timeFormatter.string(from: lastDataChange))"
         )
     }
@@ -204,12 +197,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate: TickerPanelViewDelegate {
-    func panelView(_ view: TickerPanelView, didFocus symbol: String) {
-        guard symbol != focusedSymbol else { return }
-        focusedSymbol = symbol
-        refreshPanel()
-    }
-
     func panelView(_ view: TickerPanelView, didToggle symbol: String) {
         webSocketManager.toggleCryptoSelection(symbol)
         refreshPanel()

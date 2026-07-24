@@ -101,8 +101,7 @@ final class NothingTextButton: NSControl {
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: leadingAnchor),
             label.trailingAnchor.constraint(equalTo: trailingAnchor),
-            label.topAnchor.constraint(equalTo: topAnchor),
-            label.bottomAnchor.constraint(equalTo: bottomAnchor),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 
@@ -127,9 +126,9 @@ final class NothingTextButton: NSControl {
     }
 }
 
-/// A physical switch, not a pill: a square-cornered track with a block that slides between
-/// two hard stops. Controls change position over 150ms with no bounce — a click, not a
-/// swoosh.
+/// A physical switch: pill track, circular thumb and two definite stops. The visible
+/// instrument sits inside a 44pt target. Motion is 150ms with no bounce — a click, not
+/// a swoosh.
 final class MechanicalSwitch: NSControl {
     private let track = CALayer()
     private let knob = CALayer()
@@ -140,15 +139,15 @@ final class MechanicalSwitch: NSControl {
     }
 
     init() {
-        super.init(frame: NSRect(origin: .zero, size: NothingTheme.Metric.switchSize))
+        let target = NothingTheme.Metric.controlTarget
+        super.init(frame: NSRect(x: 0, y: 0, width: NothingTheme.Metric.switchSize.width, height: target))
         wantsLayer = true
         translatesAutoresizingMaskIntoConstraints = false
         widthAnchor.constraint(equalToConstant: NothingTheme.Metric.switchSize.width).isActive = true
-        heightAnchor.constraint(equalToConstant: NothingTheme.Metric.switchSize.height).isActive = true
+        heightAnchor.constraint(equalToConstant: target).isActive = true
 
         track.borderWidth = NothingTheme.Metric.hairline
-        track.cornerRadius = 3
-        knob.cornerRadius = 2
+        track.cornerRadius = NothingTheme.Metric.switchSize.height / 2
         layer?.addSublayer(track)
         layer?.addSublayer(knob)
     }
@@ -166,9 +165,16 @@ final class MechanicalSwitch: NSControl {
     }
 
     private func layout(animated: Bool) {
+        let trackSize = NothingTheme.Metric.switchSize
+        let trackFrame = NSRect(
+            x: (bounds.width - trackSize.width) / 2,
+            y: (bounds.height - trackSize.height) / 2,
+            width: trackSize.width,
+            height: trackSize.height
+        )
         let inset: CGFloat = 3
-        let side = bounds.height - inset * 2
-        let x = isOn ? bounds.width - inset - side : inset
+        let side = trackFrame.height - inset * 2
+        let x = isOn ? trackFrame.maxX - inset - side : trackFrame.minX + inset
 
         CATransaction.begin()
         CATransaction.setDisableActions(!animated)
@@ -176,8 +182,14 @@ final class MechanicalSwitch: NSControl {
             CATransaction.setAnimationDuration(NothingTheme.Metric.transition)
             CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(controlPoints: 0.25, 0.1, 0.25, 1))
         }
-        track.frame = bounds
-        knob.frame = NSRect(x: x, y: inset, width: side, height: side)
+        track.frame = trackFrame
+        knob.frame = NSRect(
+            x: x,
+            y: trackFrame.minY + inset,
+            width: side,
+            height: side
+        )
+        knob.cornerRadius = side / 2
         // Dynamic colours must be resolved against this view's appearance before `cgColor`
         // snapshots them, or the switch stays in whichever mode drew it first.
         effectiveAppearance.performAsCurrentDrawingAppearance {
