@@ -136,14 +136,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         for range in title.codeRanges {
             result.addAttribute(
                 .foregroundColor,
-                value: NothingTheme.Palette.textDisplay.withAlphaComponent(0.68),
+                value: NothingTheme.Palette.textDisplay.withAlphaComponent(0.60),
                 range: range
             )
         }
         for range in title.staleRanges {
             result.addAttribute(
                 .foregroundColor,
-                value: NothingTheme.Palette.textDisplay.withAlphaComponent(0.68),
+                value: NothingTheme.Palette.textDisplay.withAlphaComponent(0.60),
                 range: range
             )
         }

@@ -112,7 +112,7 @@ enum NothingTheme {
     /// the panel that a gap could have done instead.
     enum Metric {
         static let panelWidth: CGFloat = 300
-        static let padding: CGFloat = 20
+        static let padding: CGFloat = 24
         static let xs: CGFloat = 4
         static let sm: CGFloat = 8
         static let md: CGFloat = 16
