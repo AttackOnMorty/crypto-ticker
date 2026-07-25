@@ -181,7 +181,9 @@ final class TickerPanelView: NSView {
 
             let section = CoinSectionView(symbol: symbol)
             addFullWidth(section, to: stack)
-            stack.setCustomSpacing(index == symbols.count - 1 ? Metric.xl : Metric.md, after: section)
+            // The footer control has a 44pt hit target with built-in vertical breathing
+            // room, so a 16pt stack gap produces the intended visible 32pt group break.
+            stack.setCustomSpacing(Metric.md, after: section)
             return section
         }
 
