@@ -14,12 +14,19 @@ import AppKit
 
 /// Everything the panel needs to draw itself, already resolved by the caller.
 struct PanelSnapshot {
+    enum DayChart {
+        case loading
+        case unavailable
+        case points([Double])
+    }
+
     struct Coin {
         let symbol: String
         let pair: String
         let price: String
         let change: PanelText.Change
         let status: PanelText.Status
+        let dayChart: DayChart
     }
 
     /// All supported coins are equal peers in one primary market board.
@@ -60,6 +67,7 @@ final class CoinSectionView: NSView {
     private let statusLabel: NothingLabel
     private let priceLabel: NothingLabel
     private let changeLabel: NothingLabel
+    private let dayChartView: DayChartView
 
     init(symbol: String) {
         pairLabel = NothingLabel(
@@ -81,10 +89,11 @@ final class CoinSectionView: NSView {
             font: NothingTheme.data(size: NothingTheme.TypeSize.value),
             color: NothingTheme.Palette.textDisabled
         )
+        dayChartView = DayChartView()
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        for view in [pairLabel, statusLabel, priceLabel, changeLabel] {
+        for view in [pairLabel, statusLabel, priceLabel, changeLabel, dayChartView] {
             addSubview(view)
         }
         NSLayoutConstraint.activate([
@@ -99,7 +108,11 @@ final class CoinSectionView: NSView {
 
             changeLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             changeLabel.topAnchor.constraint(equalTo: priceLabel.bottomAnchor, constant: NothingTheme.Metric.xs),
-            changeLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            dayChartView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            dayChartView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            dayChartView.topAnchor.constraint(equalTo: changeLabel.bottomAnchor, constant: NothingTheme.Metric.sm),
+            dayChartView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }
 
@@ -113,6 +126,7 @@ final class CoinSectionView: NSView {
         priceLabel.text = coin.price
         changeLabel.text = coin.change.text
         changeLabel.textColor = coin.change.direction.color
+        dayChartView.state = coin.dayChart
     }
 }
 

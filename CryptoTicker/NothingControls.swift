@@ -82,6 +82,135 @@ final class HairlineView: NSView {
     }
 }
 
+/// A current UTC-day sparkline. The line is deliberately neutral: direction is already
+/// encoded by the adjacent percentage, so repeating red/green here would create a second
+/// accent event. No fill, axes, grid or enclosing card compete with the data itself.
+final class DayChartView: NSView {
+    private let startLabel: NothingLabel
+    private let endLabel: NothingLabel
+    private let plot: DaySparklinePlot
+
+    var state: PanelSnapshot.DayChart = .loading {
+        didSet { plot.state = state }
+    }
+
+    init() {
+        let font = NothingTheme.data(size: NothingTheme.TypeSize.label)
+        startLabel = NothingLabel(
+            font: font,
+            color: NothingTheme.Palette.textDisabled,
+            tracking: NothingTheme.labelTracking
+        )
+        endLabel = NothingLabel(
+            font: font,
+            color: NothingTheme.Palette.textDisabled,
+            tracking: NothingTheme.labelTracking,
+            alignment: .right
+        )
+        plot = DaySparklinePlot()
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+
+        startLabel.text = "00 UTC"
+        endLabel.text = "NOW"
+        for view in [plot, startLabel, endLabel] { addSubview(view) }
+        NSLayoutConstraint.activate([
+            plot.leadingAnchor.constraint(equalTo: leadingAnchor),
+            plot.trailingAnchor.constraint(equalTo: trailingAnchor),
+            plot.topAnchor.constraint(equalTo: topAnchor),
+            plot.heightAnchor.constraint(equalToConstant: NothingTheme.Metric.chartHeight),
+
+            startLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            startLabel.topAnchor.constraint(equalTo: plot.bottomAnchor, constant: NothingTheme.Metric.xs),
+            startLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
+            endLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            endLabel.firstBaselineAnchor.constraint(equalTo: startLabel.firstBaselineAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+final class DaySparklinePlot: NSView {
+    var state: PanelSnapshot.DayChart = .loading {
+        didSet { needsDisplay = true }
+    }
+
+    init() {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override var isFlipped: Bool { true }
+
+    override func viewDidChangeEffectiveAppearance() {
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard case .points(let points) = state else {
+            drawState(ifUnavailable: state)
+            return
+        }
+        guard points.count > 1,
+              let low = points.min(),
+              let high = points.max() else {
+            drawState("[LOADING]")
+            return
+        }
+
+        let path = NSBezierPath()
+        path.lineWidth = 1.5
+        path.lineJoinStyle = .round
+        path.lineCapStyle = .round
+
+        let plotBounds = bounds.insetBy(dx: 0.75, dy: 2)
+        let range = high - low
+        for (index, value) in points.enumerated() {
+            let x = plotBounds.minX
+                + CGFloat(index) / CGFloat(points.count - 1) * plotBounds.width
+            let normalizedY = range == 0 ? 0.5 : (value - low) / range
+            let y = plotBounds.maxY - CGFloat(normalizedY) * plotBounds.height
+            let point = NSPoint(x: x, y: y)
+            index == 0 ? path.move(to: point) : path.line(to: point)
+        }
+
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            NothingTheme.Palette.textPrimary.setStroke()
+            path.stroke()
+        }
+    }
+
+    private func drawState(ifUnavailable state: PanelSnapshot.DayChart) {
+        if case .unavailable = state {
+            drawState("[NO DATA]")
+        } else {
+            drawState("[LOADING]")
+        }
+    }
+
+    private func drawState(_ text: String) {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let font = NothingTheme.data(size: NothingTheme.TypeSize.label)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: NothingTheme.Palette.textDisabled,
+                .kern: NothingTheme.labelTracking * font.pointSize,
+            ]
+            let size = text.size(withAttributes: attributes)
+            text.draw(
+                at: NSPoint(x: bounds.minX, y: bounds.midY - size.height / 2),
+                withAttributes: attributes
+            )
+        }
+    }
+}
+
 /// A label that is also a button. There is no bordered button anywhere in the panel — a
 /// control announces itself by brightening under the cursor, which is all the affordance
 /// a five-element panel needs.

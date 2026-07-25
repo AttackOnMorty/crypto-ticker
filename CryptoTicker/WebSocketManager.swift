@@ -31,6 +31,49 @@ struct TradeMessage: Decodable {
     }
 }
 
+/// The subset of Binance's UTC trading-day ticker used by the app. Unlike `/ticker/24hr`,
+/// this begins at the exchange-standard 00:00 UTC boundary.
+struct TradingDayTicker: Decodable {
+    let lastPrice: String
+    let priceChangePercent: String
+}
+
+/// One five-minute close in the current UTC trading day.
+struct DayChartPoint: Equatable {
+    let openTime: Int64
+    let close: Double
+}
+
+enum DayChartData {
+    /// Binance klines are positional arrays. Keep that wire-format knowledge at the
+    /// network boundary so the rest of the app receives typed, finite values.
+    static func points(from data: Data) -> [DayChartPoint]? {
+        guard let rows = try? JSONSerialization.jsonObject(with: data) as? [[Any]] else {
+            return nil
+        }
+
+        var result: [DayChartPoint] = []
+        result.reserveCapacity(rows.count)
+        for row in rows {
+            guard row.count > 4,
+                  let openTime = (row[0] as? NSNumber)?.int64Value,
+                  let closeText = row[4] as? String,
+                  let close = Double(closeText),
+                  close.isFinite else {
+                return nil
+            }
+            result.append(DayChartPoint(openTime: openTime, close: close))
+        }
+        return result
+    }
+
+    static func utcDayStartMilliseconds(for date: Date) -> Int64 {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return Int64(calendar.startOfDay(for: date).timeIntervalSince1970 * 1_000)
+    }
+}
+
 enum ConnectionState {
     case disconnected
     case connecting
@@ -46,10 +89,12 @@ class WebSocketManager {
     /// Formatted display strings (already through `PriceFormatter.price`).
     var prices: [String: String] = [:]
     var selectedSymbols: [String] = SymbolCatalog.supported
-    /// RAW 24h change strings (e.g. "2.50"), formatted at display time. Stored raw on
-    /// purpose so the colour decision (`PriceFormatter.percentValue`) parses the number
-    /// directly instead of round-tripping a formatted string — do not pre-format here.
+    /// Raw UTC trading-day change strings (e.g. "2.50"), formatted at display time.
+    /// Stored raw so the colour decision parses the number directly instead of
+    /// round-tripping a formatted string — do not pre-format here.
     var priceChanges: [String: String] = [:]
+    var dayChartPoints: [String: [DayChartPoint]] = [:]
+    var unavailableDayCharts: Set<String> = []
     var connectionStates: [String: ConnectionState] = [:]
 
     /// The fixed set of coins the app supports (mirrors the old `availableCurrencies`).
@@ -85,36 +130,70 @@ class WebSocketManager {
         }
     }
 
-    /// Refreshes prices for every supported coin, not just the selected ones, so a
-    /// hidden coin's menu row (which has no live socket) still shows a current price.
+    /// Refreshes both UTC trading-day statistics and chart points for every supported coin.
     func fetchAllPrices() async {
         await fetchPrices(for: availableSymbols)
     }
 
     private func fetchPrice(for symbol: String) async {
-        guard let url = URL(string: "\(AppConfiguration.API.binanceBaseURL)/ticker/24hr?symbol=\(symbol.uppercased())") else {
+        async let ticker: Void = fetchTradingDayTicker(for: symbol)
+        async let chart: Void = fetchAndStoreDayChart(for: symbol)
+        _ = await (ticker, chart)
+    }
+
+    private func fetchTradingDayTicker(for symbol: String) async {
+        guard let tickerURL = URL(
+            string: "\(AppConfiguration.API.binanceBaseURL)/ticker/tradingDay?symbol=\(symbol.uppercased())&timeZone=0"
+        ) else {
             logger.error("Invalid URL for symbol: \(symbol)")
             return
         }
 
         do {
-            let (data, _) = try await urlSession.data(from: url)
-
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let priceStr = json["lastPrice"] as? String,
-                  let changeStr = json["priceChangePercent"] as? String else {
-                logger.error("Failed to parse price data for \(symbol)")
-                return
-            }
+            let (tickerData, _) = try await urlSession.data(from: tickerURL)
+            let ticker = try JSONDecoder().decode(TradingDayTicker.self, from: tickerData)
 
             // Already back on the main actor after the await. No notification here (F9):
             // the status bar reads state via its timer, and the menu refreshes explicitly
             // after its on-open fetch batch — posting per symbol caused redundant refreshes.
-            prices[symbol] = PriceFormatter.price(priceStr)
-            priceChanges[symbol] = changeStr
+            prices[symbol] = PriceFormatter.price(ticker.lastPrice)
+            priceChanges[symbol] = ticker.priceChangePercent
         } catch {
-            logger.error("Failed to fetch price for \(symbol): \(error.localizedDescription)")
+            logger.error("Failed to fetch UTC trading-day ticker for \(symbol): \(error.localizedDescription)")
         }
+    }
+
+    private func fetchAndStoreDayChart(for symbol: String) async {
+        unavailableDayCharts.remove(symbol)
+        do {
+            dayChartPoints[symbol] = try await fetchDayChart(for: symbol, now: Date())
+        } catch {
+            if dayChartPoints[symbol] == nil {
+                unavailableDayCharts.insert(symbol)
+            }
+            logger.error("Failed to fetch UTC day chart for \(symbol): \(error.localizedDescription)")
+        }
+    }
+
+    private func fetchDayChart(for symbol: String, now: Date) async throws -> [DayChartPoint] {
+        var components = URLComponents(string: "\(AppConfiguration.API.binanceBaseURL)/klines")
+        components?.queryItems = [
+            URLQueryItem(name: "symbol", value: symbol.uppercased()),
+            URLQueryItem(name: "interval", value: "5m"),
+            URLQueryItem(name: "startTime", value: String(DayChartData.utcDayStartMilliseconds(for: now))),
+            URLQueryItem(name: "endTime", value: String(Int64(now.timeIntervalSince1970 * 1_000))),
+            URLQueryItem(name: "timeZone", value: "0"),
+            URLQueryItem(name: "limit", value: "288"),
+        ]
+        guard let url = components?.url else { throw WebSocketError.invalidURL }
+
+        let (data, _) = try await urlSession.data(from: url)
+        guard let points = DayChartData.points(from: data) else {
+            throw WebSocketError.networkError(
+                NSError(domain: AppConfiguration.Logging.subsystem, code: 1)
+            )
+        }
+        return points
     }
 
     func connectWebSockets() {

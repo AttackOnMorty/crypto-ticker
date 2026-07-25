@@ -41,7 +41,7 @@ enum PriceFormatter {
         return formatter.string(from: NSNumber(value: value)) ?? placeholder
     }
 
-    /// Formats a 24h change percentage as a signed, 2-decimal value with a trailing `%`.
+    /// Formats a change percentage as a signed, 2-decimal value with a trailing `%`.
     static func percent(_ raw: String) -> String {
         guard let value = Double(raw), value.isFinite else { return placeholder }
         return String(format: "%+.2f%%", value)

@@ -195,12 +195,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func coin(for symbol: String) -> PanelSnapshot.Coin {
+        let dayChart: PanelSnapshot.DayChart
+        if let points = webSocketManager.dayChartPoints[symbol] {
+            dayChart = .points(points.map(\.close))
+        } else if webSocketManager.unavailableDayCharts.contains(symbol) {
+            dayChart = .unavailable
+        } else {
+            dayChart = .loading
+        }
+
         return PanelSnapshot.Coin(
             symbol: symbol,
             pair: PanelText.pair(for: symbol),
             price: webSocketManager.prices[symbol] ?? PriceFormatter.placeholder,
             change: PanelText.change(fromRaw: webSocketManager.priceChanges[symbol] ?? ""),
-            status: PanelText.status(state: webSocketManager.connectionStates[symbol])
+            status: PanelText.status(state: webSocketManager.connectionStates[symbol]),
+            dayChart: dayChart
         )
     }
 

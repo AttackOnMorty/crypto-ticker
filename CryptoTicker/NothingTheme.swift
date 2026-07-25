@@ -120,6 +120,7 @@ enum NothingTheme {
         static let xl: CGFloat = 32
         static let cornerRadius: CGFloat = 14
         static let hairline: CGFloat = 1
+        static let chartHeight: CGFloat = 48
         /// Gap between the status-bar button and the top of the panel.
         static let panelOffset: CGFloat = 6
         static let buttonTarget: CGFloat = 44
