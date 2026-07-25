@@ -66,6 +66,7 @@ final class CoinSectionView: NSView {
     private let pairLabel: NothingLabel
     private let statusLabel: NothingLabel
     private let priceLabel: NothingLabel
+    private let periodLabel: NothingLabel
     private let changeLabel: NothingLabel
     private let dayChartView: DayChartView
 
@@ -85,33 +86,52 @@ final class CoinSectionView: NSView {
             font: NothingTheme.display(size: NothingTheme.TypeSize.hero),
             color: NothingTheme.Palette.textDisplay
         )
+        periodLabel = NothingLabel(
+            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
+            color: NothingTheme.Palette.textSecondary,
+            tracking: NothingTheme.labelTracking
+        )
         changeLabel = NothingLabel(
             font: NothingTheme.data(size: NothingTheme.TypeSize.value),
-            color: NothingTheme.Palette.textDisabled
+            color: NothingTheme.Palette.textDisabled,
+            alignment: .right
         )
         dayChartView = DayChartView()
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        for view in [pairLabel, statusLabel, priceLabel, changeLabel, dayChartView] {
+        periodLabel.text = "DAY / UTC"
+        statusLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        changeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        for view in [pairLabel, statusLabel, priceLabel, periodLabel, changeLabel, dayChartView] {
             addSubview(view)
         }
         NSLayoutConstraint.activate([
             pairLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             pairLabel.topAnchor.constraint(equalTo: topAnchor),
             statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            statusLabel.leadingAnchor.constraint(
+                greaterThanOrEqualTo: pairLabel.trailingAnchor,
+                constant: NothingTheme.Metric.sm
+            ),
             statusLabel.firstBaselineAnchor.constraint(equalTo: pairLabel.firstBaselineAnchor),
 
             priceLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             priceLabel.topAnchor.constraint(equalTo: pairLabel.bottomAnchor, constant: NothingTheme.Metric.md),
             priceLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
 
-            changeLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
-            changeLabel.topAnchor.constraint(equalTo: priceLabel.bottomAnchor, constant: NothingTheme.Metric.xs),
+            periodLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            periodLabel.topAnchor.constraint(equalTo: priceLabel.bottomAnchor, constant: NothingTheme.Metric.sm),
+            changeLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            changeLabel.leadingAnchor.constraint(
+                greaterThanOrEqualTo: periodLabel.trailingAnchor,
+                constant: NothingTheme.Metric.sm
+            ),
+            changeLabel.firstBaselineAnchor.constraint(equalTo: periodLabel.firstBaselineAnchor),
 
             dayChartView.leadingAnchor.constraint(equalTo: leadingAnchor),
             dayChartView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            dayChartView.topAnchor.constraint(equalTo: changeLabel.bottomAnchor, constant: NothingTheme.Metric.sm),
+            dayChartView.topAnchor.constraint(equalTo: periodLabel.bottomAnchor, constant: NothingTheme.Metric.xs),
             dayChartView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }

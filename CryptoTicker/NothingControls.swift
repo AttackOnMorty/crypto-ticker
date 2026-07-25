@@ -40,6 +40,11 @@ final class NothingLabel: NSTextField {
         didSet { if !text.isEmpty { applyAttributes() } }
     }
 
+    override var intrinsicContentSize: NSSize {
+        let size = attributedStringValue.size()
+        return NSSize(width: ceil(size.width), height: ceil(size.height))
+    }
+
     private func applyAttributes() {
         guard let font, let textColor else { return }
         var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
@@ -50,6 +55,7 @@ final class NothingLabel: NSTextField {
         paragraph.alignment = alignment
         attributes[.paragraphStyle] = paragraph
         attributedStringValue = NSAttributedString(string: text, attributes: attributes)
+        invalidateIntrinsicContentSize()
     }
 }
 
@@ -111,8 +117,9 @@ final class DayChartView: NSView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        startLabel.text = "00 UTC"
+        startLabel.text = "00:00"
         endLabel.text = "NOW"
+        endLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         for view in [plot, startLabel, endLabel] { addSubview(view) }
         NSLayoutConstraint.activate([
             plot.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -124,6 +131,10 @@ final class DayChartView: NSView {
             startLabel.topAnchor.constraint(equalTo: plot.bottomAnchor, constant: NothingTheme.Metric.xs),
             startLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
             endLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            endLabel.leadingAnchor.constraint(
+                greaterThanOrEqualTo: startLabel.trailingAnchor,
+                constant: NothingTheme.Metric.sm
+            ),
             endLabel.firstBaselineAnchor.constraint(equalTo: startLabel.firstBaselineAnchor),
         ])
     }
@@ -181,7 +192,7 @@ final class DaySparklinePlot: NSView {
         }
 
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            NothingTheme.Palette.textPrimary.setStroke()
+            NothingTheme.Palette.textDisplay.setStroke()
             path.stroke()
         }
     }
@@ -226,6 +237,7 @@ final class NothingTextButton: NSControl {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         label.text = text
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
         addSubview(label)
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -244,6 +256,8 @@ final class NothingTextButton: NSControl {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override var intrinsicContentSize: NSSize { label.intrinsicContentSize }
 
     override func mouseDown(with event: NSEvent) {
         sendAction(action, to: target)
