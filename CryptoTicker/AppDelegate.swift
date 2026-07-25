@@ -26,6 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("Application launching...")
+        setupMainMenu()
         setupStatusBarItem()
         setupPanel()
         setupObservers()
@@ -37,6 +38,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("Application terminating...")
         statusBarTimer?.invalidate()
         webSocketManager.disconnectWebSockets()
+    }
+
+    /// Menu-bar-only apps still need a main menu for standard keyboard command routing.
+    /// The menu is not shown in the custom panel, but gives AppKit a native ⌘Q command.
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+        let applicationItem = NSMenuItem()
+        mainMenu.addItem(applicationItem)
+
+        let applicationMenu = NSMenu()
+        let quitItem = NSMenuItem(
+            title: "Quit CryptoTicker",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        quitItem.keyEquivalentModifierMask = .command
+        applicationMenu.addItem(quitItem)
+        applicationItem.submenu = applicationMenu
+
+        NSApplication.shared.mainMenu = mainMenu
     }
 
     private func setupStatusBarItem() {
