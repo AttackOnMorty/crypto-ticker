@@ -100,7 +100,7 @@ final class CoinSectionView: NSView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        periodLabel.text = "DAY / UTC"
+        periodLabel.text = "UTC DAY"
         statusLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         changeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         for view in [pairLabel, statusLabel, priceLabel, periodLabel, changeLabel, dayChartView] {

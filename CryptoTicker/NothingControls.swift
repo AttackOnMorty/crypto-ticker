@@ -92,8 +92,6 @@ final class HairlineView: NSView {
 /// encoded by the adjacent percentage, so repeating red/green here would create a second
 /// accent event. No fill, axes, grid or enclosing card compete with the data itself.
 final class DayChartView: NSView {
-    private let startLabel: NothingLabel
-    private let endLabel: NothingLabel
     private let plot: DaySparklinePlot
 
     var state: PanelSnapshot.DayChart = .loading {
@@ -101,41 +99,17 @@ final class DayChartView: NSView {
     }
 
     init() {
-        let font = NothingTheme.data(size: NothingTheme.TypeSize.label)
-        startLabel = NothingLabel(
-            font: font,
-            color: NothingTheme.Palette.textDisabled,
-            tracking: NothingTheme.labelTracking
-        )
-        endLabel = NothingLabel(
-            font: font,
-            color: NothingTheme.Palette.textDisabled,
-            tracking: NothingTheme.labelTracking,
-            alignment: .right
-        )
         plot = DaySparklinePlot()
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        startLabel.text = "00:00"
-        endLabel.text = "NOW"
-        endLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-        for view in [plot, startLabel, endLabel] { addSubview(view) }
+        addSubview(plot)
         NSLayoutConstraint.activate([
             plot.leadingAnchor.constraint(equalTo: leadingAnchor),
             plot.trailingAnchor.constraint(equalTo: trailingAnchor),
             plot.topAnchor.constraint(equalTo: topAnchor),
+            plot.bottomAnchor.constraint(equalTo: bottomAnchor),
             plot.heightAnchor.constraint(equalToConstant: NothingTheme.Metric.chartHeight),
-
-            startLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
-            startLabel.topAnchor.constraint(equalTo: plot.bottomAnchor, constant: NothingTheme.Metric.xs),
-            startLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
-            endLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            endLabel.leadingAnchor.constraint(
-                greaterThanOrEqualTo: startLabel.trailingAnchor,
-                constant: NothingTheme.Metric.sm
-            ),
-            endLabel.firstBaselineAnchor.constraint(equalTo: startLabel.firstBaselineAnchor),
         ])
     }
 
