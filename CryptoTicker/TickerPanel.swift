@@ -66,7 +66,6 @@ final class CoinSectionView: NSView {
     private let pairLabel: NothingLabel
     private let statusLabel: NothingLabel
     private let priceLabel: NothingLabel
-    private let periodLabel: NothingLabel
     private let changeLabel: NothingLabel
     private let dayChartView: DayChartView
 
@@ -86,24 +85,18 @@ final class CoinSectionView: NSView {
             font: NothingTheme.display(size: NothingTheme.TypeSize.hero),
             color: NothingTheme.Palette.textDisplay
         )
-        periodLabel = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textSecondary,
-            tracking: NothingTheme.labelTracking
-        )
         changeLabel = NothingLabel(
             font: NothingTheme.data(size: NothingTheme.TypeSize.value),
             color: NothingTheme.Palette.textDisabled,
-            alignment: .right
+            alignment: .left
         )
         dayChartView = DayChartView()
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        periodLabel.text = "UTC DAY"
         statusLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         changeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-        for view in [pairLabel, statusLabel, priceLabel, periodLabel, changeLabel, dayChartView] {
+        for view in [pairLabel, statusLabel, priceLabel, changeLabel, dayChartView] {
             addSubview(view)
         }
         NSLayoutConstraint.activate([
@@ -120,18 +113,13 @@ final class CoinSectionView: NSView {
             priceLabel.topAnchor.constraint(equalTo: pairLabel.bottomAnchor, constant: NothingTheme.Metric.md),
             priceLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
 
-            periodLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
-            periodLabel.topAnchor.constraint(equalTo: priceLabel.bottomAnchor, constant: NothingTheme.Metric.sm),
-            changeLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            changeLabel.leadingAnchor.constraint(
-                greaterThanOrEqualTo: periodLabel.trailingAnchor,
-                constant: NothingTheme.Metric.sm
-            ),
-            changeLabel.firstBaselineAnchor.constraint(equalTo: periodLabel.firstBaselineAnchor),
+            changeLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            changeLabel.topAnchor.constraint(equalTo: priceLabel.bottomAnchor, constant: NothingTheme.Metric.xs),
+            changeLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
 
             dayChartView.leadingAnchor.constraint(equalTo: leadingAnchor),
             dayChartView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            dayChartView.topAnchor.constraint(equalTo: periodLabel.bottomAnchor, constant: NothingTheme.Metric.xs),
+            dayChartView.topAnchor.constraint(equalTo: changeLabel.bottomAnchor, constant: NothingTheme.Metric.sm),
             dayChartView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }
@@ -231,7 +219,7 @@ final class TickerPanelView: NSView {
         quit.target = self
         quit.action = #selector(quitClicked)
         quit.heightAnchor.constraint(greaterThanOrEqualToConstant: Metric.buttonTarget).isActive = true
-        addFullWidth(makeTrailingRow([quit]), to: stack)
+        addFullWidth(makeFooterRow(quit: quit), to: stack)
     }
 
     private func addFullWidth(_ view: NSView, to stack: NSStackView) {
@@ -239,21 +227,30 @@ final class TickerPanelView: NSView {
         view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     }
 
-    /// A right-anchored control row. The empty leading edge is intentional negative space.
-    private func makeTrailingRow(_ views: [NSView]) -> NSView {
+    /// Shared chart scope belongs in the footer once, rather than repeating inside every
+    /// identical coin section. The action remains edge-anchored on the opposite side.
+    private func makeFooterRow(quit: NSView) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
-
-        var previous = container.trailingAnchor
-        for (index, view) in views.enumerated() {
-            container.addSubview(view)
-            NSLayoutConstraint.activate([
-                view.trailingAnchor.constraint(equalTo: previous, constant: index == 0 ? 0 : -NothingTheme.Metric.sm),
-                view.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                container.heightAnchor.constraint(greaterThanOrEqualTo: view.heightAnchor),
-            ])
-            previous = view.leadingAnchor
-        }
+        let scope = NothingLabel(
+            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
+            color: NothingTheme.Palette.textDisabled,
+            tracking: NothingTheme.labelTracking
+        )
+        scope.text = "UTC DAY"
+        container.addSubview(scope)
+        container.addSubview(quit)
+        NSLayoutConstraint.activate([
+            scope.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scope.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            quit.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            quit.leadingAnchor.constraint(
+                greaterThanOrEqualTo: scope.trailingAnchor,
+                constant: NothingTheme.Metric.sm
+            ),
+            quit.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            container.heightAnchor.constraint(greaterThanOrEqualTo: quit.heightAnchor),
+        ])
         return container
     }
 
