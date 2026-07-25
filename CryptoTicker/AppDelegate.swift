@@ -110,7 +110,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startPriceUpdates() {
         statusBarTimer = Timer.scheduledTimer(withTimeInterval: AppConfiguration.UI.statusBarUpdateInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.updateStatusBarTitle()
+                guard let self else { return }
+                self.updateStatusBarTitle()
+                if self.webSocketManager.isPanelVisible {
+                    self.panelController.contentView.updateFreshness(
+                        updatedAt: self.webSocketManager.lastPriceUpdate
+                    )
+                }
             }
         }
     }
@@ -191,7 +197,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeSnapshot() -> PanelSnapshot {
-        return PanelSnapshot(coins: webSocketManager.availableSymbols.map(coin(for:)))
+        let symbols = webSocketManager.availableSymbols
+        return PanelSnapshot(
+            feedStatus: PanelText.feedStatus(
+                states: symbols.map { webSocketManager.connectionStates[$0] }
+            ),
+            updatedAt: webSocketManager.lastPriceUpdate,
+            coins: symbols.map(coin(for:))
+        )
     }
 
     private func coin(for symbol: String) -> PanelSnapshot.Coin {
@@ -209,7 +222,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             pair: PanelText.pair(for: symbol),
             price: webSocketManager.prices[symbol] ?? PriceFormatter.placeholder,
             change: PanelText.change(fromRaw: webSocketManager.priceChanges[symbol] ?? ""),
-            status: PanelText.status(state: webSocketManager.connectionStates[symbol]),
             dayChart: dayChart
         )
     }

@@ -34,6 +34,28 @@ enum PanelText {
         }
     }
 
+    /// The panel has one feed indicator rather than repeating a status beside every
+    /// instrument. It only claims LIVE when every visible socket is healthy.
+    static func feedStatus(states: [ConnectionState?]) -> Status {
+        guard !states.isEmpty else { return .lost }
+        if states.allSatisfy({ status(state: $0) == .live }) { return .live }
+        if states.contains(where: { status(state: $0) == .lost }) { return .lost }
+        return .sync
+    }
+
+    /// A compact, fixed-width freshness label for the shared market feed. The clock is
+    /// deliberately coarse after one minute: this is confidence metadata, not a timer.
+    static func freshness(updatedAt: Date?, now: Date = Date()) -> String {
+        guard let updatedAt else { return "UPDATED --" }
+        let seconds = max(0, Int(now.timeIntervalSince(updatedAt)))
+        if seconds < 2 { return "UPDATED NOW" }
+        if seconds < 60 { return String(format: "UPDATED %02dS AGO", seconds) }
+
+        let minutes = seconds / 60
+        if minutes < 60 { return String(format: "UPDATED %02dM AGO", minutes) }
+        return String(format: "UPDATED %02dH AGO", min(minutes / 60, 99))
+    }
+
     enum Direction {
         case up, down, flat
     }

@@ -28,6 +28,26 @@ final class PanelTextTests: XCTestCase {
         XCTAssertEqual(widths, [4])
     }
 
+    func testSharedFeedIsLiveOnlyWhenEverySocketIsLive() {
+        XCTAssertEqual(PanelText.feedStatus(states: [.connected, .connected]), .live)
+        XCTAssertEqual(PanelText.feedStatus(states: [.connected, .connecting]), .sync)
+        XCTAssertEqual(PanelText.feedStatus(states: [.connected, .disconnected]), .lost)
+        XCTAssertEqual(PanelText.feedStatus(states: []), .lost)
+    }
+
+    func testFreshnessUsesCompactTechnicalUnits() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        XCTAssertEqual(PanelText.freshness(updatedAt: nil, now: now), "UPDATED --")
+        XCTAssertEqual(
+            PanelText.freshness(updatedAt: now.addingTimeInterval(-4), now: now),
+            "UPDATED 04S AGO"
+        )
+        XCTAssertEqual(
+            PanelText.freshness(updatedAt: now.addingTimeInterval(-125), now: now),
+            "UPDATED 02M AGO"
+        )
+    }
+
     // MARK: change
 
     func testChangeCarriesDirectionInSignAndCase() {

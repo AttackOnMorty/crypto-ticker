@@ -28,7 +28,9 @@ enum NothingTheme {
         /// Status colours are identical in both modes — they encode data, not chrome.
         /// `accent` is the interrupt: nothing else on screen may use it.
         static let accent = NSColor(rgb: 0xD71921)
-        static let success = NSColor(rgb: 0x4A9E5C)
+        // The original green remains legible on OLED black; light mode needs a darker
+        // value to keep 16pt market movement above normal-text contrast requirements.
+        static let success = dynamic(dark: 0x4A9E5C, light: 0x2E7D42)
         static let warning = NSColor(rgb: 0xD4A843)
 
         private static func dynamic(dark: Int, light: Int) -> NSColor {
@@ -118,7 +120,8 @@ enum NothingTheme {
         static let md: CGFloat = 16
         static let lg: CGFloat = 24
         static let xl: CGFloat = 32
-        static let cornerRadius: CGFloat = 14
+        static let sectionGap: CGFloat = 48
+        static let cornerRadius: CGFloat = 10
         static let hairline: CGFloat = 1
         static let chartHeight: CGFloat = 48
         /// Gap between the status-bar button and the top of the panel.

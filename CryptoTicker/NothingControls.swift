@@ -196,9 +196,8 @@ final class DaySparklinePlot: NSView {
     }
 }
 
-/// A label that is also a button. There is no bordered button anywhere in the panel — a
-/// control announces itself by brightening under the cursor, which is all the affordance
-/// a five-element panel needs.
+/// A label that is also a button. Brackets provide a technical affordance at rest; hover
+/// and keyboard focus brighten it without adding a permanent border or filled surface.
 final class NothingTextButton: NSControl {
     private let label: NothingLabel
     private let restingColor: NSColor
@@ -210,6 +209,11 @@ final class NothingTextButton: NSControl {
         self.activeColor = activeColor
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
+        focusRingType = .exterior
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(text.replacingOccurrences(of: "[", with: "")
+            .replacingOccurrences(of: "]", with: "")
+            .trimmingCharacters(in: .whitespaces))
         label.text = text
         label.setContentCompressionResistancePriority(.required, for: .horizontal)
         addSubview(label)
@@ -231,12 +235,40 @@ final class NothingTextButton: NSControl {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    override var acceptsFirstResponder: Bool { true }
     override var intrinsicContentSize: NSSize { label.intrinsicContentSize }
+    override var focusRingMaskBounds: NSRect { bounds.insetBy(dx: -2, dy: -2) }
+
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: focusRingMaskBounds, xRadius: 4, yRadius: 4).fill()
+    }
 
     override func mouseDown(with event: NSEvent) {
         sendAction(action, to: target)
     }
 
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 36 || event.charactersIgnoringModifiers == " " {
+            sendAction(action, to: target)
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted { label.textColor = activeColor }
+        return accepted
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { label.textColor = restingColor }
+        return resigned
+    }
+
     override func mouseEntered(with event: NSEvent) { label.textColor = activeColor }
-    override func mouseExited(with event: NSEvent) { label.textColor = restingColor }
+    override func mouseExited(with event: NSEvent) {
+        if window?.firstResponder !== self { label.textColor = restingColor }
+    }
 }

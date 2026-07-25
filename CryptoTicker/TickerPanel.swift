@@ -25,11 +25,12 @@ struct PanelSnapshot {
         let pair: String
         let price: String
         let change: PanelText.Change
-        let status: PanelText.Status
         let dayChart: DayChart
     }
 
     /// All supported coins are equal peers in one primary market board.
+    let feedStatus: PanelText.Status
+    let updatedAt: Date?
     let coins: [Coin]
 }
 
@@ -64,7 +65,6 @@ protocol TickerPanelViewDelegate: AnyObject {
 /// status treatment and menu-bar control; only the data changes.
 final class CoinSectionView: NSView {
     private let pairLabel: NothingLabel
-    private let statusLabel: NothingLabel
     private let priceLabel: NothingLabel
     private let changeLabel: NothingLabel
     private let dayChartView: DayChartView
@@ -74,12 +74,6 @@ final class CoinSectionView: NSView {
             font: NothingTheme.data(size: NothingTheme.TypeSize.label),
             color: NothingTheme.Palette.textSecondary,
             tracking: NothingTheme.labelTracking
-        )
-        statusLabel = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textDisabled,
-            tracking: NothingTheme.labelTracking,
-            alignment: .right
         )
         priceLabel = NothingLabel(
             font: NothingTheme.display(size: NothingTheme.TypeSize.hero),
@@ -94,20 +88,13 @@ final class CoinSectionView: NSView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
 
-        statusLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         changeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-        for view in [pairLabel, statusLabel, priceLabel, changeLabel, dayChartView] {
+        for view in [pairLabel, priceLabel, changeLabel, dayChartView] {
             addSubview(view)
         }
         NSLayoutConstraint.activate([
             pairLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             pairLabel.topAnchor.constraint(equalTo: topAnchor),
-            statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            statusLabel.leadingAnchor.constraint(
-                greaterThanOrEqualTo: pairLabel.trailingAnchor,
-                constant: NothingTheme.Metric.sm
-            ),
-            statusLabel.firstBaselineAnchor.constraint(equalTo: pairLabel.firstBaselineAnchor),
 
             priceLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             priceLabel.topAnchor.constraint(equalTo: pairLabel.bottomAnchor, constant: NothingTheme.Metric.md),
@@ -129,12 +116,83 @@ final class CoinSectionView: NSView {
 
     func update(with coin: PanelSnapshot.Coin) {
         pairLabel.text = coin.pair
-        statusLabel.text = "[\(coin.status.rawValue)]"
-        statusLabel.textColor = coin.status.color
         priceLabel.text = coin.price
         changeLabel.text = coin.change.text
         changeLabel.textColor = coin.change.direction.color
         dayChartView.state = coin.dayChart
+    }
+}
+
+// MARK: - Shared feed context
+
+/// Market source, chart scope and connection confidence are shared facts. Keeping them
+/// in one quiet header prevents each equal-price section from acquiring duplicate chrome.
+final class FeedHeaderView: NSView {
+    private let sourceLabel: NothingLabel
+    private let statusLabel: NothingLabel
+    private let freshnessLabel: NothingLabel
+    private var updatedAt: Date?
+
+    init() {
+        sourceLabel = NothingLabel(
+            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
+            color: NothingTheme.Palette.textSecondary,
+            tracking: NothingTheme.labelTracking
+        )
+        statusLabel = NothingLabel(
+            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
+            color: NothingTheme.Palette.textDisabled,
+            tracking: NothingTheme.labelTracking,
+            alignment: .right
+        )
+        freshnessLabel = NothingLabel(
+            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
+            color: NothingTheme.Palette.textDisabled,
+            tracking: NothingTheme.labelTracking,
+            alignment: .right
+        )
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+
+        sourceLabel.text = "BINANCE · UTC DAY · 5M"
+        for view in [sourceLabel, statusLabel, freshnessLabel] { addSubview(view) }
+        NSLayoutConstraint.activate([
+            sourceLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            sourceLabel.topAnchor.constraint(equalTo: topAnchor),
+            sourceLabel.trailingAnchor.constraint(
+                lessThanOrEqualTo: statusLabel.leadingAnchor,
+                constant: -NothingTheme.Metric.sm
+            ),
+
+            statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            statusLabel.firstBaselineAnchor.constraint(equalTo: sourceLabel.firstBaselineAnchor),
+
+            freshnessLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            freshnessLabel.topAnchor.constraint(
+                equalTo: statusLabel.bottomAnchor,
+                constant: NothingTheme.Metric.xs
+            ),
+            freshnessLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func update(status: PanelText.Status, updatedAt: Date?) {
+        statusLabel.text = "[\(status.rawValue)]"
+        statusLabel.textColor = status.color
+        self.updatedAt = updatedAt
+        updateFreshness()
+    }
+
+    func updateFreshness(updatedAt: Date?) {
+        self.updatedAt = updatedAt
+        updateFreshness()
+    }
+
+    private func updateFreshness() {
+        freshnessLabel.text = PanelText.freshness(updatedAt: updatedAt)
     }
 }
 
@@ -145,6 +203,7 @@ final class TickerPanelView: NSView {
 
     weak var delegate: TickerPanelViewDelegate?
 
+    private let feedHeader = FeedHeaderView()
     private var coinSections: [CoinSectionView] = []
 
     /// - Parameter symbols: every supported coin, in a fixed order. The stat rows are
@@ -194,23 +253,22 @@ final class TickerPanelView: NSView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Metric.padding),
         ])
 
-        coinSections = symbols.enumerated().map { index, symbol in
-            if index > 0 {
-                let hairline = HairlineView()
-                addFullWidth(hairline, to: stack)
-                stack.setCustomSpacing(Metric.md, after: hairline)
-            }
+        addFullWidth(feedHeader, to: stack)
+        stack.setCustomSpacing(Metric.xl, after: feedHeader)
 
+        coinSections = symbols.enumerated().map { index, symbol in
             let section = CoinSectionView(symbol: symbol)
             addFullWidth(section, to: stack)
-            // The footer control has a 44pt hit target with built-in vertical breathing
-            // room, so a 16pt stack gap produces the intended visible 32pt group break.
-            stack.setCustomSpacing(Metric.md, after: section)
+            // Identical peers are separated by a wide rhythm, never a decorative rule.
+            stack.setCustomSpacing(
+                index == symbols.indices.last ? Metric.lg : Metric.sectionGap,
+                after: section
+            )
             return section
         }
 
         let quit = NothingTextButton(
-            text: "QUIT",
+            text: "[ QUIT ]",
             font: NothingTheme.data(size: NothingTheme.TypeSize.label),
             color: NothingTheme.Palette.textSecondary,
             activeColor: NothingTheme.Palette.textPrimary,
@@ -243,9 +301,14 @@ final class TickerPanelView: NSView {
     // MARK: Refresh
 
     func update(with snapshot: PanelSnapshot) {
+        feedHeader.update(status: snapshot.feedStatus, updatedAt: snapshot.updatedAt)
         for (section, coin) in zip(coinSections, snapshot.coins) {
             section.update(with: coin)
         }
+    }
+
+    func updateFreshness(updatedAt: Date?) {
+        feedHeader.updateFreshness(updatedAt: updatedAt)
     }
 
     // MARK: Actions
