@@ -20,9 +20,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastStatusTitle: StatusBarText.Title?
     private var lastPanelFetch: Date?
 
-    /// When the data last changed, for the panel's footer.
-    private var lastDataChange = Date()
-
     override init() {
         super.init()
     }
@@ -164,7 +161,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         lastPanelFetch = now
         Task { @MainActor in
             await webSocketManager.fetchAllPrices()
-            lastDataChange = Date()
             refreshPanel()
         }
     }
@@ -174,10 +170,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeSnapshot() -> PanelSnapshot {
-        return PanelSnapshot(
-            coins: webSocketManager.availableSymbols.map(coin(for:)),
-            updated: "UPDATED \(Self.timeFormatter.string(from: lastDataChange))"
-        )
+        return PanelSnapshot(coins: webSocketManager.availableSymbols.map(coin(for:)))
     }
 
     private func coin(for symbol: String) -> PanelSnapshot.Coin {
@@ -190,12 +183,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter
-    }()
-
     // MARK: - Events
 
     @objc private func statusBarButtonClicked() {
@@ -206,7 +193,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Live data changed. Only the open panel needs refreshing; when it is closed the 1 Hz
     /// status-bar timer already covers the visible UI, so we do nothing (F6).
     @objc private func dataDidChange(_ notification: Notification) {
-        lastDataChange = Date()
         guard webSocketManager.isPanelVisible else { return }
         refreshPanel()
     }

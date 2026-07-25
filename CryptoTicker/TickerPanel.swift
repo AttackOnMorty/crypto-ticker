@@ -24,7 +24,6 @@ struct PanelSnapshot {
 
     /// All supported coins are equal peers in one primary market board.
     let coins: [Coin]
-    let updated: String
 }
 
 extension PanelText.Status {
@@ -124,15 +123,11 @@ final class TickerPanelView: NSView {
 
     weak var delegate: TickerPanelViewDelegate?
 
-    private let updatedLabel: NothingLabel
     private var coinSections: [CoinSectionView] = []
 
-    /// - Parameter symbols: every supported coin, in a fixed order. The switch row and the
-    ///   stat rows are sized from this once — the panel is never rebuilt, only refreshed.
+    /// - Parameter symbols: every supported coin, in a fixed order. The stat rows are
+    ///   sized from this once — the panel is never rebuilt, only refreshed.
     init(symbols: [String]) {
-        let labelFont = NothingTheme.data(size: NothingTheme.TypeSize.label)
-        updatedLabel = NothingLabel(font: labelFont, color: NothingTheme.Palette.textDisabled, tracking: NothingTheme.labelTracking)
-
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = NothingTheme.Metric.cornerRadius
@@ -200,7 +195,7 @@ final class TickerPanelView: NSView {
         quit.target = self
         quit.action = #selector(quitClicked)
         quit.heightAnchor.constraint(greaterThanOrEqualToConstant: Metric.buttonTarget).isActive = true
-        addFullWidth(makeRow(leading: updatedLabel, trailing: [quit]), to: stack)
+        addFullWidth(makeTrailingRow([quit]), to: stack)
     }
 
     private func addFullWidth(_ view: NSView, to stack: NSStackView) {
@@ -208,20 +203,13 @@ final class TickerPanelView: NSView {
         view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     }
 
-    /// A row with one thing on the left and a right-anchored group, the asymmetry the
-    /// layout leans on. Height follows the tallest child.
-    private func makeRow(leading: NSView, trailing: [NSView]) -> NSView {
+    /// A right-anchored control row. The empty leading edge is intentional negative space.
+    private func makeTrailingRow(_ views: [NSView]) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(leading)
-        NSLayoutConstraint.activate([
-            leading.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            leading.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            container.heightAnchor.constraint(greaterThanOrEqualTo: leading.heightAnchor),
-        ])
 
         var previous = container.trailingAnchor
-        for (index, view) in trailing.enumerated() {
+        for (index, view) in views.enumerated() {
             container.addSubview(view)
             NSLayoutConstraint.activate([
                 view.trailingAnchor.constraint(equalTo: previous, constant: index == 0 ? 0 : -NothingTheme.Metric.sm),
@@ -239,8 +227,6 @@ final class TickerPanelView: NSView {
         for (section, coin) in zip(coinSections, snapshot.coins) {
             section.update(with: coin)
         }
-
-        updatedLabel.text = snapshot.updated
     }
 
     // MARK: Actions
