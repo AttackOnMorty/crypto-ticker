@@ -219,7 +219,7 @@ final class TickerPanelView: NSView {
         quit.target = self
         quit.action = #selector(quitClicked)
         quit.heightAnchor.constraint(greaterThanOrEqualToConstant: Metric.buttonTarget).isActive = true
-        addFullWidth(makeFooterRow(quit: quit), to: stack)
+        addFullWidth(makeTrailingRow(quit), to: stack)
     }
 
     private func addFullWidth(_ view: NSView, to stack: NSStackView) {
@@ -227,29 +227,15 @@ final class TickerPanelView: NSView {
         view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     }
 
-    /// Shared chart scope belongs in the footer once, rather than repeating inside every
-    /// identical coin section. The action remains edge-anchored on the opposite side.
-    private func makeFooterRow(quit: NSView) -> NSView {
+    /// A right-anchored control row. The empty leading edge is intentional negative space.
+    private func makeTrailingRow(_ view: NSView) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
-        let scope = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textDisabled,
-            tracking: NothingTheme.labelTracking
-        )
-        scope.text = "UTC DAY"
-        container.addSubview(scope)
-        container.addSubview(quit)
+        container.addSubview(view)
         NSLayoutConstraint.activate([
-            scope.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            scope.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            quit.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            quit.leadingAnchor.constraint(
-                greaterThanOrEqualTo: scope.trailingAnchor,
-                constant: NothingTheme.Metric.sm
-            ),
-            quit.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            container.heightAnchor.constraint(greaterThanOrEqualTo: quit.heightAnchor),
+            view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            view.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            container.heightAnchor.constraint(greaterThanOrEqualTo: view.heightAnchor),
         ])
         return container
     }
