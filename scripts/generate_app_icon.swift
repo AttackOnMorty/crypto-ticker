@@ -31,13 +31,45 @@ func bitmap(size: Int) -> NSBitmapImageRep {
     return representation
 }
 
+func superellipsePath(
+    center: NSPoint,
+    radius: CGFloat,
+    exponent: CGFloat,
+    segments: Int = 1024
+) -> NSBezierPath {
+    let path = NSBezierPath()
+
+    for index in 0...segments {
+        let angle = CGFloat(index) / CGFloat(segments) * 2 * .pi
+        let cosine = cos(angle)
+        let sine = sin(angle)
+        let point = NSPoint(
+            x: center.x + radius * (cosine < 0 ? -1 : 1) * pow(abs(cosine), 2 / exponent),
+            y: center.y + radius * (sine < 0 ? -1 : 1) * pow(abs(sine), 2 / exponent)
+        )
+
+        if index == 0 {
+            path.move(to: point)
+        } else {
+            path.line(to: point)
+        }
+    }
+
+    path.close()
+    return path
+}
+
 func drawMaster() -> NSBitmapImageRep {
     let representation = bitmap(size: canvasSize)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: representation)
 
     NSColor.black.setFill()
-    NSBezierPath(rect: NSRect(x: 0, y: 0, width: canvasSize, height: canvasSize)).fill()
+    superellipsePath(
+        center: NSPoint(x: CGFloat(canvasSize) / 2, y: CGFloat(canvasSize) / 2),
+        radius: 461,
+        exponent: 4.5
+    ).fill()
 
     NSColor.white.setFill()
     for cell in occupied {

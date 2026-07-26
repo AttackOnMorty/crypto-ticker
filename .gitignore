@@ -7,3 +7,6 @@ Package.resolved
 
 # Xcode user state
 xcuserdata/
+
+# Support/privacy site is published from its own repository
+AppStore/Site/
