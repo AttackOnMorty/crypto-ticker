@@ -44,8 +44,8 @@ crypto,bitcoin,ethereum,btc,eth,price,ticker,menu bar,market,live
 
 ## URLs
 
-- **Support URL:** To be created
-- **Privacy policy URL:** To be created
+- **Support URL:** https://tickbyte-live-crypto.attackonmorty.chatgpt.site/#support
+- **Privacy policy URL:** https://tickbyte-live-crypto.attackonmorty.chatgpt.site/#privacy
 
 ## Review notes
 
@@ -56,4 +56,3 @@ Tickbyte is a menu bar-only macOS app, so it does not open a Dock window.
 3. The panel displays BTC/USDT and ETH/USDT prices, UTC trading-day movement, and charts.
 
 Live prices are received from Binance public WebSocket trade streams. No account or login is required.
-
