@@ -12,7 +12,7 @@ The interface follows the **Nothing** design system: monochrome, typographically
 
 There are two build paths and they are deliberately separate:
 
-- **The shippable app** is built from `CryptoTicker.xcodeproj` (open in Xcode and Run/Archive). `xcodebuild`'s IDE plugins are broken in this environment, so building the app from the CLI is unreliable.
+- **The shippable app** is built from `Tickbyte.xcodeproj` (open in Xcode and Run/Archive). `xcodebuild`'s IDE plugins are broken in this environment, so building the app from the CLI is unreliable.
 - **The logic is tested** via SwiftPM:
   ```bash
   swift test                                   # all tests
@@ -20,11 +20,11 @@ There are two build paths and they are deliberately separate:
   swift test --filter WebSocketPlanTests/testReconnect  # one method
   ```
 
-`Package.swift` is a **test-only harness**, not a second product. It compiles the *same* source files the Xcode target uses (no duplicated code) by listing them explicitly in the `CryptoTickerCore` target's `sources:`. **When you add a new `.swift` file to the app, add it to that `sources:` list** or `swift test` won't see it. `CryptoTickerApp.swift` is excluded because its `@main` entry point is only valid in an executable target, and `Fonts/` because it is a resource directory, not source.
+`Package.swift` is a **test-only harness**, not a second product. It compiles the *same* source files the Xcode target uses (no duplicated code) by listing them explicitly in the `TickbyteCore` target's `sources:`. **When you add a new `.swift` file to the app, add it to that `sources:` list** or `swift test` won't see it. `TickbyteApp.swift` is excluded because its `@main` entry point is only valid in an executable target, and `Fonts/` because it is a resource directory, not source.
 
 ## Architecture
 
-Entry point is `CryptoTickerApp.swift` (`@main`, SwiftUI `App` with an empty `Settings` scene) which hands off to `AppDelegate` via `@NSApplicationDelegateAdaptor`. All real work is in AppKit, not SwiftUI.
+Entry point is `TickbyteApp.swift` (`@main`, SwiftUI `App` with an empty `Settings` scene) which hands off to `AppDelegate` via `@NSApplicationDelegateAdaptor`. All real work is in AppKit, not SwiftUI.
 
 Two cooperating layers:
 
@@ -71,8 +71,8 @@ The Nothing system in one paragraph: three layers of importance per screen and n
 - **`cgColor` freezes the appearance current at resolution time.** Any layer-backed view reading a dynamic colour must do it inside `effectiveAppearance.performAsCurrentDrawingAppearance { }` and re-resolve on `viewDidChangeEffectiveAppearance()`, or it stays stuck in whichever mode drew it first.
 - **The panel's one pattern-break is the hero number** in Doto, the dot-matrix face. Nothing else on the panel may compete with it; if something needs more emphasis, take it from the hero or move it.
 - **Three type sizes on the panel** (`TypeSize.hero` / `.value` / `.label`) and one on the menu bar. A fourth size is almost always a spacing problem — add distance instead.
-- **Fonts are bundled, not assumed.** `CryptoTicker/Fonts/*.ttf` (Doto, Space Grotesk, Space Mono — all OFL) are registered into the *process* on first font lookup by `NothingTheme.registration`; the app never installs fonts system-wide. Doto and Space Grotesk are variable faces whose named instances are not addressable by PostScript name, so `NothingTheme.resolve` goes through a family + weight `NSFontDescriptor` and verifies the family actually matched before returning — a missing face falls back to a system font rather than silently rendering the wrong one.
-- **Adding a font file?** Drop it in `CryptoTicker/Fonts/`; the Xcode target uses a filesystem-synchronized group, so it is bundled automatically.
+- **Fonts are bundled, not assumed.** `Tickbyte/Fonts/*.ttf` (Doto, Space Grotesk, Space Mono — all OFL) are registered into the *process* on first font lookup by `NothingTheme.registration`; the app never installs fonts system-wide. Doto and Space Grotesk are variable faces whose named instances are not addressable by PostScript name, so `NothingTheme.resolve` goes through a family + weight `NSFontDescriptor` and verifies the family actually matched before returning — a missing face falls back to a system font rather than silently rendering the wrong one.
+- **Adding a font file?** Drop it in `Tickbyte/Fonts/`; the Xcode target uses a filesystem-synchronized group, so it is bundled automatically.
 
 ## Conventions
 

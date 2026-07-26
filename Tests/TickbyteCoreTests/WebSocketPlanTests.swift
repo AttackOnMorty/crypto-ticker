@@ -1,5 +1,5 @@
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 /// The pure connect/disconnect/reconnect decisions, isolated from the live sockets.
 final class WebSocketPlanTests: XCTestCase {

@@ -5,7 +5,7 @@
 
 ## Goal
 
-Two changes to the CryptoTicker menu-bar app:
+Two changes to the Tickbyte menu-bar app:
 
 1. Default selection becomes **BTC + ETH** only (was BTC only).
 2. Users can **search** any Binance USDT spot pair and **add / remove** it from their ticker, via a **popover** anchored to the status item.
@@ -109,4 +109,4 @@ Every symbol is rendered uniformly from its `baseAsset` code — the API gives n
 - `WebSocketManager.swift` — new `tradableSymbols` state + fetch; load sanitizer swap; guard swap.
 - `AppDelegate.swift` — menu rebuild (selected-only + "Add crypto…") + popover controller.
 - `Package.swift` — register new source files.
-- `Tests/CryptoTickerCoreTests/` — new tests; remove/adjust `SymbolValidationTests` for the new guard.
+- `Tests/TickbyteCoreTests/` — new tests; remove/adjust `SymbolValidationTests` for the new guard.

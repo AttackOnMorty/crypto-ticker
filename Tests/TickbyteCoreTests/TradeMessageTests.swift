@@ -1,5 +1,5 @@
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 /// Decoding only the price field from a @trade message (F8), instead of parsing every key
 /// into a boxed dictionary per message.

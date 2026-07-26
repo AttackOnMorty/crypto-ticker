@@ -1,6 +1,6 @@
 //
 //  NothingControls.swift
-//  CryptoTicker
+//  Tickbyte
 //
 //  The small AppKit pieces the panel is built from: a tracked label, a hairline, and a
 //  mechanical toggle. Kept apart from the panel so each one is a single readable thing.

@@ -1,5 +1,5 @@
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 final class PriceFormatterTests: XCTestCase {
 

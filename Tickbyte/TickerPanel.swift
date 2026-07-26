@@ -1,6 +1,6 @@
 //
 //  TickerPanel.swift
-//  CryptoTicker
+//  Tickbyte
 //
 //  The dropdown. A borderless panel rather than an `NSMenu` or an `NSPopover`: both of
 //  those impose a system material, a shadow and a fixed row shape, and the design calls

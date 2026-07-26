@@ -1,6 +1,6 @@
 //
 //  WebSocketPlan.swift
-//  CryptoTicker
+//  Tickbyte
 //
 
 import Foundation

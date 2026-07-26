@@ -12,7 +12,7 @@
 
 - **Symbols are lowercase stream form** (`btcusdt`, `solusdt`) everywhere — dictionary keys, persistence, WebSocket path. Only the REST `?symbol=` param uppercases (`symbol.uppercased()`).
 - **Security guard is `SymbolFormat.isValid`** — regex `^[a-z0-9]{2,20}usdt$`. The symbol is interpolated **unescaped** into the WebSocket URL path, so this guard (not any whitelist) is what prevents URL injection. Applied on load-from-UserDefaults and before any symbol reaches a URL. Never regress this.
-- **The SwiftPM test target compiles the same app sources** (`Package.swift` `sources:` list). Every new `.swift` file under `CryptoTicker/` MUST be appended there or `swift test` won't see it. All app files compile together each commit — a shared-signature change breaks compilation until every call site is updated.
+- **The SwiftPM test target compiles the same app sources** (`Package.swift` `sources:` list). Every new `.swift` file under `Tickbyte/` MUST be appended there or `swift test` won't see it. All app files compile together each commit — a shared-signature change breaks compilation until every call site is updated.
 - **Concurrency:** `WebSocketManager` and `AppDelegate` are `@MainActor`; all mutable state stays on the main actor. Network I/O hops back via `Task { @MainActor in … }` before touching state.
 - **Config lives in `AppConfiguration`** — no magic numbers/strings in logic.
 - **Commit after each task**, directly on `main`, do not push.
@@ -22,9 +22,9 @@
 ### Task 1: SymbolFormat + TradableSymbol (pure)
 
 **Files:**
-- Create: `CryptoTicker/Symbol.swift`
+- Create: `Tickbyte/Symbol.swift`
 - Modify: `Package.swift:24-32` (add source)
-- Test: `Tests/CryptoTickerCoreTests/SymbolFormatTests.swift`
+- Test: `Tests/TickbyteCoreTests/SymbolFormatTests.swift`
 
 **Interfaces:**
 - Produces:
@@ -34,9 +34,9 @@
 - [ ] **Step 1: Write the failing test**
 
 ```swift
-// Tests/CryptoTickerCoreTests/SymbolFormatTests.swift
+// Tests/TickbyteCoreTests/SymbolFormatTests.swift
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 final class SymbolFormatTests: XCTestCase {
 
@@ -72,7 +72,7 @@ Expected: FAIL — `cannot find 'SymbolFormat' in scope`.
 - [ ] **Step 3: Write minimal implementation**
 
 ```swift
-// CryptoTicker/Symbol.swift
+// Tickbyte/Symbol.swift
 import Foundation
 
 /// A Binance spot symbol tradable against USDT, as surfaced by `exchangeInfo`.
@@ -109,7 +109,7 @@ Expected: PASS (all three tests).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add CryptoTicker/Symbol.swift Tests/CryptoTickerCoreTests/SymbolFormatTests.swift Package.swift
+git add Tickbyte/Symbol.swift Tests/TickbyteCoreTests/SymbolFormatTests.swift Package.swift
 git commit -m "Add SymbolFormat guard + TradableSymbol"
 ```
 
@@ -118,9 +118,9 @@ git commit -m "Add SymbolFormat guard + TradableSymbol"
 ### Task 2: ExchangeInfo.parse (pure)
 
 **Files:**
-- Create: `CryptoTicker/ExchangeInfo.swift`
+- Create: `Tickbyte/ExchangeInfo.swift`
 - Modify: `Package.swift` (add source)
-- Test: `Tests/CryptoTickerCoreTests/ExchangeInfoTests.swift`
+- Test: `Tests/TickbyteCoreTests/ExchangeInfoTests.swift`
 
 **Interfaces:**
 - Consumes: `TradableSymbol` (Task 1)
@@ -129,9 +129,9 @@ git commit -m "Add SymbolFormat guard + TradableSymbol"
 - [ ] **Step 1: Write the failing test**
 
 ```swift
-// Tests/CryptoTickerCoreTests/ExchangeInfoTests.swift
+// Tests/TickbyteCoreTests/ExchangeInfoTests.swift
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 final class ExchangeInfoTests: XCTestCase {
 
@@ -166,7 +166,7 @@ Expected: FAIL — `cannot find 'ExchangeInfo' in scope`.
 - [ ] **Step 3: Write minimal implementation**
 
 ```swift
-// CryptoTicker/ExchangeInfo.swift
+// Tickbyte/ExchangeInfo.swift
 import Foundation
 
 /// Decodes Binance `exchangeInfo` into the USDT-quoted, currently-tradable symbols we offer
@@ -204,7 +204,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add CryptoTicker/ExchangeInfo.swift Tests/CryptoTickerCoreTests/ExchangeInfoTests.swift Package.swift
+git add Tickbyte/ExchangeInfo.swift Tests/TickbyteCoreTests/ExchangeInfoTests.swift Package.swift
 git commit -m "Add ExchangeInfo.parse (TRADING + USDT filter)"
 ```
 
@@ -213,9 +213,9 @@ git commit -m "Add ExchangeInfo.parse (TRADING + USDT filter)"
 ### Task 3: SymbolSearch.match (pure)
 
 **Files:**
-- Create: `CryptoTicker/SymbolSearch.swift`
+- Create: `Tickbyte/SymbolSearch.swift`
 - Modify: `Package.swift` (add source)
-- Test: `Tests/CryptoTickerCoreTests/SymbolSearchTests.swift`
+- Test: `Tests/TickbyteCoreTests/SymbolSearchTests.swift`
 
 **Interfaces:**
 - Consumes: `TradableSymbol` (Task 1)
@@ -224,9 +224,9 @@ git commit -m "Add ExchangeInfo.parse (TRADING + USDT filter)"
 - [ ] **Step 1: Write the failing test**
 
 ```swift
-// Tests/CryptoTickerCoreTests/SymbolSearchTests.swift
+// Tests/TickbyteCoreTests/SymbolSearchTests.swift
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 final class SymbolSearchTests: XCTestCase {
 
@@ -265,7 +265,7 @@ Expected: FAIL — `cannot find 'SymbolSearch' in scope`.
 - [ ] **Step 3: Write minimal implementation**
 
 ```swift
-// CryptoTicker/SymbolSearch.swift
+// Tickbyte/SymbolSearch.swift
 import Foundation
 
 /// Local, case-insensitive search over the cached exchangeInfo list. Binance has no
@@ -297,7 +297,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add CryptoTicker/SymbolSearch.swift Tests/CryptoTickerCoreTests/SymbolSearchTests.swift Package.swift
+git add Tickbyte/SymbolSearch.swift Tests/TickbyteCoreTests/SymbolSearchTests.swift Package.swift
 git commit -m "Add SymbolSearch.match (local ranked filter)"
 ```
 
@@ -308,7 +308,7 @@ git commit -m "Add SymbolSearch.match (local ranked filter)"
 Adds the cached symbol list + fetch. Purely additive: no existing call site references it yet, so the package stays green. Not unit-tested (async network); verified by `swift build`.
 
 **Files:**
-- Modify: `CryptoTicker/WebSocketManager.swift`
+- Modify: `Tickbyte/WebSocketManager.swift`
 
 **Interfaces:**
 - Consumes: `TradableSymbol`, `ExchangeInfo.parse` (Tasks 1-2)
@@ -375,7 +375,7 @@ Expected: builds with no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add CryptoTicker/WebSocketManager.swift
+git add Tickbyte/WebSocketManager.swift
 git commit -m "Add exchangeInfo symbol cache to WebSocketManager"
 ```
 
@@ -386,14 +386,14 @@ git commit -m "Add exchangeInfo symbol cache to WebSocketManager"
 The atomic change. Removes `CryptoCurrency`, swaps the display model to code-only, changes defaults, swaps the load/toggle guards to `SymbolFormat`. Touches every file that shared the old signatures, so it lands as one commit that keeps `swift test` green. The popover open is a stub here (wired in Task 6).
 
 **Files:**
-- Modify: `CryptoTicker/AppConfiguration.swift`
-- Modify: `CryptoTicker/DisplayText.swift`
-- Modify: `CryptoTicker/WebSocketManager.swift`
-- Modify: `CryptoTicker/AppDelegate.swift`
-- Delete: `CryptoTicker/CryptoCurrency.swift`
-- Delete: `Tests/CryptoTickerCoreTests/SymbolValidationTests.swift`
+- Modify: `Tickbyte/AppConfiguration.swift`
+- Modify: `Tickbyte/DisplayText.swift`
+- Modify: `Tickbyte/WebSocketManager.swift`
+- Modify: `Tickbyte/AppDelegate.swift`
+- Delete: `Tickbyte/CryptoCurrency.swift`
+- Delete: `Tests/TickbyteCoreTests/SymbolValidationTests.swift`
 - Modify: `Package.swift` (remove `CryptoCurrency.swift` from sources)
-- Test: `Tests/CryptoTickerCoreTests/DisplayTextTests.swift` (add/replace)
+- Test: `Tests/TickbyteCoreTests/DisplayTextTests.swift` (add/replace)
 
 **Interfaces:**
 - Consumes: `SymbolFormat.isValid`, `SymbolFormat.displayCode` (Task 1)
@@ -403,12 +403,12 @@ The atomic change. Removes `CryptoCurrency`, swaps the display model to code-onl
 
 - [ ] **Step 1: Write the failing display-builder test**
 
-Check existing tests first: `ls Tests/CryptoTickerCoreTests/`. If a `DisplayTextTests.swift` (or `MenuRowTextTests`/`StatusBarTextTests`) exists, update its expectations to the new signatures below; otherwise create `DisplayTextTests.swift`:
+Check existing tests first: `ls Tests/TickbyteCoreTests/`. If a `DisplayTextTests.swift` (or `MenuRowTextTests`/`StatusBarTextTests`) exists, update its expectations to the new signatures below; otherwise create `DisplayTextTests.swift`:
 
 ```swift
-// Tests/CryptoTickerCoreTests/DisplayTextTests.swift
+// Tests/TickbyteCoreTests/DisplayTextTests.swift
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 final class DisplayTextTests: XCTestCase {
 
@@ -635,7 +635,7 @@ Remove the now-unused `lastMenuFetch` property (`:20`) and any remaining referen
 - [ ] **Step 7: Delete CryptoCurrency and its test; update Package.swift**
 
 ```bash
-git rm CryptoTicker/CryptoCurrency.swift Tests/CryptoTickerCoreTests/SymbolValidationTests.swift
+git rm Tickbyte/CryptoCurrency.swift Tests/TickbyteCoreTests/SymbolValidationTests.swift
 ```
 Then remove the `"CryptoCurrency.swift",` line from `Package.swift` `sources:`.
 
@@ -658,8 +658,8 @@ git commit -m "Cut over to code-only display; default BTC+ETH; SymbolFormat guar
 The search/add/remove surface. AppKit UI — not unit-testable via SwiftPM; verified by building and running the app in Xcode.
 
 **Files:**
-- Create: `CryptoTicker/AddCryptoPopover.swift`
-- Modify: `CryptoTicker/AppDelegate.swift` (wire `openAddCryptoPopover`)
+- Create: `Tickbyte/AddCryptoPopover.swift`
+- Modify: `Tickbyte/AppDelegate.swift` (wire `openAddCryptoPopover`)
 - Modify: `Package.swift` (add source, so the file compiles under `swift build`/`swift test`)
 
 **Interfaces:**
@@ -669,7 +669,7 @@ The search/add/remove surface. AppKit UI — not unit-testable via SwiftPM; veri
 - [ ] **Step 1: Create the popover controller**
 
 ```swift
-// CryptoTicker/AddCryptoPopover.swift
+// Tickbyte/AddCryptoPopover.swift
 import Cocoa
 
 /// Search + add/remove surface shown in an NSPopover. Added symbols show a green ✓ (click
@@ -854,7 +854,7 @@ Expected: builds clean; all tests still pass (no test regression from the additi
 
 - [ ] **Step 5: Manual test in Xcode**
 
-Open `CryptoTicker.xcodeproj`, Run. Verify:
+Open `Tickbyte.xcodeproj`, Run. Verify:
 1. First launch (clear UserDefaults if needed) shows **BTC and ETH** with live prices.
 2. Menu → "Add crypto…" opens the popover; typing `sol` lists `SOL` (and other matches), `+` prefix.
 3. Click `SOL` → it gains a ✓, appears in the menu with a price shortly after; status bar shows `SOL`.
@@ -864,7 +864,7 @@ Open `CryptoTicker.xcodeproj`, Run. Verify:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add CryptoTicker/AddCryptoPopover.swift CryptoTicker/AppDelegate.swift Package.swift
+git add Tickbyte/AddCryptoPopover.swift Tickbyte/AppDelegate.swift Package.swift
 git commit -m "Add search/add/remove popover"
 ```
 

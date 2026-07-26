@@ -1,6 +1,6 @@
 //
 //  NothingTheme.swift
-//  CryptoTicker
+//  Tickbyte
 //
 //  The design system's tokens — colour, type, metrics — in one place, so no hex literal
 //  or point size appears in view code. Mirrors the Nothing token set: monochrome canvas,

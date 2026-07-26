@@ -1,6 +1,6 @@
 //
 //  Symbol.swift
-//  CryptoTicker
+//  Tickbyte
 //
 
 import Foundation

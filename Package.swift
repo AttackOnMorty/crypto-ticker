@@ -1,25 +1,25 @@
 // swift-tools-version:5.9
 import PackageDescription
 
-// Test-only harness for the CryptoTicker app.
+// Test-only harness for the Tickbyte app.
 //
-// The shippable app is built from CryptoTicker.xcodeproj. This package exists so the
+// The shippable app is built from Tickbyte.xcodeproj. This package exists so the
 // app's logic can be exercised with `swift test` (xcodebuild's IDE plugins are broken
 // in this environment). It compiles the *same* source files the Xcode target uses — no
-// duplicated code. CryptoTickerApp.swift is excluded because its `@main` entry point is
+// duplicated code. TickbyteApp.swift is excluded because its `@main` entry point is
 // only valid in an executable target and is not needed to test the logic.
 let package = Package(
-    name: "CryptoTicker",
+    name: "Tickbyte",
     platforms: [.macOS(.v13)],
     targets: [
         .target(
-            name: "CryptoTickerCore",
-            path: "CryptoTicker",
+            name: "TickbyteCore",
+            path: "Tickbyte",
             exclude: [
-                "CryptoTickerApp.swift",
+                "TickbyteApp.swift",
                 "Assets.xcassets",
                 "Preview Content",
-                "CryptoTicker.entitlements",
+                "Tickbyte.entitlements",
                 "Fonts",
             ],
             sources: [
@@ -36,9 +36,9 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "CryptoTickerCoreTests",
-            dependencies: ["CryptoTickerCore"],
-            path: "Tests/CryptoTickerCoreTests"
+            name: "TickbyteCoreTests",
+            dependencies: ["TickbyteCore"],
+            path: "Tests/TickbyteCoreTests"
         ),
     ]
 )

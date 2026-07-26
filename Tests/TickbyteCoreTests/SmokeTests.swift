@@ -1,5 +1,5 @@
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 /// Confirms the harness compiles the app sources and can reach their symbols.
 final class SmokeTests: XCTestCase {

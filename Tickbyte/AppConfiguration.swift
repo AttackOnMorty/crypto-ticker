@@ -1,6 +1,6 @@
 //
 //  AppConfiguration.swift
-//  CryptoTicker
+//  Tickbyte
 //
 //  Created by Luke Mao on 5/2/2025.
 //
@@ -33,7 +33,7 @@ struct AppConfiguration {
     }
 
     struct Logging {
-        static let subsystem = "com.cryptoticker.app"
+        static let subsystem = "attackonmorty.tickbyte"
     }
 
     struct Defaults {

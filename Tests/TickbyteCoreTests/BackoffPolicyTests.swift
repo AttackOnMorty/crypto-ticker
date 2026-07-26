@@ -1,5 +1,5 @@
 import XCTest
-@testable import CryptoTickerCore
+@testable import TickbyteCore
 
 /// Exponential reconnect backoff with a cap (F2): base 5s, doubling, capped at 60s.
 final class BackoffPolicyTests: XCTestCase {

@@ -1,6 +1,6 @@
 //
 //  PriceFormatter.swift
-//  CryptoTicker
+//  Tickbyte
 //
 
 import Foundation

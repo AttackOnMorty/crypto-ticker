@@ -1,6 +1,6 @@
 //
 //  DisplayText.swift
-//  CryptoTicker
+//  Tickbyte
 //
 //  Pure builders for the menu-bar title and the panel's strings. Foundation-only so they
 //  are testable without AppKit.

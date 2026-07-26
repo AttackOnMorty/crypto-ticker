@@ -1,6 +1,6 @@
 //
 //  AppDelegate.swift
-//  CryptoTicker
+//  Tickbyte
 //
 //  Created by Luke Mao on 5/2/2025.
 //
@@ -49,7 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let applicationMenu = NSMenu()
         let quitItem = NSMenuItem(
-            title: "Quit CryptoTicker",
+            title: "Quit Tickbyte",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
