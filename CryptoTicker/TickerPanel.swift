@@ -30,7 +30,6 @@ struct PanelSnapshot {
 
     /// All supported coins are equal peers in one primary market board.
     let feedStatus: PanelText.Status
-    let updatedAt: Date?
     let coins: [Coin]
 }
 
@@ -47,8 +46,8 @@ extension PanelText.Status {
 extension PanelText.Direction {
     var color: NSColor {
         switch self {
-        case .up: return NothingTheme.Palette.success
-        case .down: return NothingTheme.Palette.accent
+        case .up: return NothingTheme.Palette.accent
+        case .down: return NothingTheme.Palette.success
         case .flat: return NothingTheme.Palette.textDisabled
         }
     }
@@ -123,79 +122,6 @@ final class CoinSectionView: NSView {
     }
 }
 
-// MARK: - Shared feed context
-
-/// Market source, chart scope and connection confidence are shared facts. Keeping them
-/// in one quiet header prevents each equal-price section from acquiring duplicate chrome.
-final class FeedHeaderView: NSView {
-    private let sourceLabel: NothingLabel
-    private let statusLabel: NothingLabel
-    private let freshnessLabel: NothingLabel
-    private var updatedAt: Date?
-
-    init() {
-        sourceLabel = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textSecondary,
-            tracking: NothingTheme.labelTracking
-        )
-        statusLabel = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textDisabled,
-            tracking: NothingTheme.labelTracking,
-            alignment: .right
-        )
-        freshnessLabel = NothingLabel(
-            font: NothingTheme.data(size: NothingTheme.TypeSize.label),
-            color: NothingTheme.Palette.textDisabled,
-            tracking: NothingTheme.labelTracking,
-            alignment: .right
-        )
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-
-        sourceLabel.text = "BINANCE · UTC DAY · 5M"
-        for view in [sourceLabel, statusLabel, freshnessLabel] { addSubview(view) }
-        NSLayoutConstraint.activate([
-            sourceLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
-            sourceLabel.topAnchor.constraint(equalTo: topAnchor),
-            sourceLabel.trailingAnchor.constraint(
-                lessThanOrEqualTo: statusLabel.leadingAnchor,
-                constant: -NothingTheme.Metric.sm
-            ),
-
-            statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            statusLabel.firstBaselineAnchor.constraint(equalTo: sourceLabel.firstBaselineAnchor),
-
-            freshnessLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
-            freshnessLabel.topAnchor.constraint(
-                equalTo: statusLabel.bottomAnchor,
-                constant: NothingTheme.Metric.xs
-            ),
-            freshnessLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    func update(status: PanelText.Status, updatedAt: Date?) {
-        statusLabel.text = "[\(status.rawValue)]"
-        statusLabel.textColor = status.color
-        self.updatedAt = updatedAt
-        updateFreshness()
-    }
-
-    func updateFreshness(updatedAt: Date?) {
-        self.updatedAt = updatedAt
-        updateFreshness()
-    }
-
-    private func updateFreshness() {
-        freshnessLabel.text = PanelText.freshness(updatedAt: updatedAt)
-    }
-}
-
 // MARK: - Panel content
 
 final class TickerPanelView: NSView {
@@ -203,7 +129,11 @@ final class TickerPanelView: NSView {
 
     weak var delegate: TickerPanelViewDelegate?
 
-    private let feedHeader = FeedHeaderView()
+    private let statusLabel = NothingLabel(
+        font: NothingTheme.data(size: NothingTheme.TypeSize.label),
+        color: NothingTheme.Palette.textDisabled,
+        tracking: NothingTheme.labelTracking
+    )
     private var coinSections: [CoinSectionView] = []
 
     /// - Parameter symbols: every supported coin, in a fixed order. The stat rows are
@@ -253,9 +183,6 @@ final class TickerPanelView: NSView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Metric.padding),
         ])
 
-        addFullWidth(feedHeader, to: stack)
-        stack.setCustomSpacing(Metric.xl, after: feedHeader)
-
         coinSections = symbols.enumerated().map { index, symbol in
             let section = CoinSectionView(symbol: symbol)
             addFullWidth(section, to: stack)
@@ -277,7 +204,7 @@ final class TickerPanelView: NSView {
         quit.target = self
         quit.action = #selector(quitClicked)
         quit.heightAnchor.constraint(greaterThanOrEqualToConstant: Metric.buttonTarget).isActive = true
-        addFullWidth(makeTrailingRow(quit), to: stack)
+        addFullWidth(makeFooterRow(quit: quit), to: stack)
     }
 
     private func addFullWidth(_ view: NSView, to stack: NSStackView) {
@@ -285,15 +212,22 @@ final class TickerPanelView: NSView {
         view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
     }
 
-    /// A right-anchored control row. The empty leading edge is intentional negative space.
-    private func makeTrailingRow(_ view: NSView) -> NSView {
+    /// Exceptional connection state and the app action share one quiet instrument footer.
+    private func makeFooterRow(quit: NSView) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(view)
+        container.addSubview(statusLabel)
+        container.addSubview(quit)
         NSLayoutConstraint.activate([
-            view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            view.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            container.heightAnchor.constraint(greaterThanOrEqualTo: view.heightAnchor),
+            statusLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            statusLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            quit.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            quit.leadingAnchor.constraint(
+                greaterThanOrEqualTo: statusLabel.trailingAnchor,
+                constant: Metric.sm
+            ),
+            quit.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            container.heightAnchor.constraint(greaterThanOrEqualTo: quit.heightAnchor),
         ])
         return container
     }
@@ -301,14 +235,15 @@ final class TickerPanelView: NSView {
     // MARK: Refresh
 
     func update(with snapshot: PanelSnapshot) {
-        feedHeader.update(status: snapshot.feedStatus, updatedAt: snapshot.updatedAt)
+        let statusText = snapshot.feedStatus.footerText
+        statusLabel.text = statusText ?? ""
+        statusLabel.isHidden = statusText == nil
+        if statusText != nil {
+            statusLabel.textColor = snapshot.feedStatus.color
+        }
         for (section, coin) in zip(coinSections, snapshot.coins) {
             section.update(with: coin)
         }
-    }
-
-    func updateFreshness(updatedAt: Date?) {
-        feedHeader.updateFreshness(updatedAt: updatedAt)
     }
 
     // MARK: Actions

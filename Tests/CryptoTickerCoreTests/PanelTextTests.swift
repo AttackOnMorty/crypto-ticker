@@ -35,17 +35,10 @@ final class PanelTextTests: XCTestCase {
         XCTAssertEqual(PanelText.feedStatus(states: []), .lost)
     }
 
-    func testFreshnessUsesCompactTechnicalUnits() {
-        let now = Date(timeIntervalSince1970: 10_000)
-        XCTAssertEqual(PanelText.freshness(updatedAt: nil, now: now), "UPDATED --")
-        XCTAssertEqual(
-            PanelText.freshness(updatedAt: now.addingTimeInterval(-4), now: now),
-            "UPDATED 04S AGO"
-        )
-        XCTAssertEqual(
-            PanelText.freshness(updatedAt: now.addingTimeInterval(-125), now: now),
-            "UPDATED 02M AGO"
-        )
+    func testFooterIsSilentWhenHealthyAndShowsExceptions() {
+        XCTAssertNil(PanelText.Status.live.footerText)
+        XCTAssertEqual(PanelText.Status.sync.footerText, "[SYNC]")
+        XCTAssertEqual(PanelText.Status.lost.footerText, "[LOST]")
     }
 
     // MARK: change

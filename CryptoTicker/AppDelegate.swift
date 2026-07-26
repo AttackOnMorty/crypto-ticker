@@ -110,13 +110,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startPriceUpdates() {
         statusBarTimer = Timer.scheduledTimer(withTimeInterval: AppConfiguration.UI.statusBarUpdateInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
-                self.updateStatusBarTitle()
-                if self.webSocketManager.isPanelVisible {
-                    self.panelController.contentView.updateFreshness(
-                        updatedAt: self.webSocketManager.lastPriceUpdate
-                    )
-                }
+                self?.updateStatusBarTitle()
             }
         }
     }
@@ -202,7 +196,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             feedStatus: PanelText.feedStatus(
                 states: symbols.map { webSocketManager.connectionStates[$0] }
             ),
-            updatedAt: webSocketManager.lastPriceUpdate,
             coins: symbols.map(coin(for:))
         )
     }

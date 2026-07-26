@@ -184,7 +184,7 @@ final class DaySparklinePlot: NSView {
             let font = NothingTheme.data(size: NothingTheme.TypeSize.label)
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
-                .foregroundColor: NothingTheme.Palette.textDisabled,
+                .foregroundColor: NothingTheme.Palette.textSecondary,
                 .kern: NothingTheme.labelTracking * font.pointSize,
             ]
             let size = text.size(withAttributes: attributes)

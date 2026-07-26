@@ -96,9 +96,6 @@ class WebSocketManager {
     var dayChartPoints: [String: [DayChartPoint]] = [:]
     var unavailableDayCharts: Set<String> = []
     var connectionStates: [String: ConnectionState] = [:]
-    /// Most recent successful market value, from either the initial REST snapshot or
-    /// the live trade stream. The panel turns this into one shared freshness label.
-    var lastPriceUpdate: Date?
 
     /// The fixed set of coins the app supports (mirrors the old `availableCurrencies`).
     let availableSymbols = SymbolCatalog.supported
@@ -161,7 +158,6 @@ class WebSocketManager {
             // after its on-open fetch batch — posting per symbol caused redundant refreshes.
             prices[symbol] = PriceFormatter.price(ticker.lastPrice)
             priceChanges[symbol] = ticker.priceChangePercent
-            lastPriceUpdate = Date()
         } catch {
             logger.error("Failed to fetch UTC trading-day ticker for \(symbol): \(error.localizedDescription)")
         }
@@ -333,7 +329,6 @@ class WebSocketManager {
         }
 
         prices[symbol] = PriceFormatter.price(priceStr)
-        lastPriceUpdate = Date()
         if isPanelVisible { // F7: only refresh the panel when it is actually on screen
             // F5: name the changed symbol so the delegate refreshes just that one row.
             NotificationCenter.default.post(name: .priceUpdated, object: symbol)
